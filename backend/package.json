@@ -1,0 +1,32 @@
+{
+  "name": "routewise-backend",
+  "version": "1.0.0",
+  "description": "Backend API server for Smart Mumbai Travel Planner (RouteWise)",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --loader ts-node/esm src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "keywords": [
+    "mumbai",
+    "travel-planner",
+    "google-maps",
+    "route-optimizer"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}
