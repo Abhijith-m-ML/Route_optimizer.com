@@ -52,7 +52,9 @@ jobs:
         run: cp frontend/dist/index.html frontend/dist/404.html
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
