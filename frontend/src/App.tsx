@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { PublicOnlyRoute } from './components/Auth/PublicOnlyRoute';
@@ -12,7 +12,7 @@ import { IPFPage } from './pages/IPFPage';
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <Routes>
           {/* Public Auth Routes (Redirects to dashboard if already authenticated) */}
@@ -76,7 +76,7 @@ export const App: React.FC = () => {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
