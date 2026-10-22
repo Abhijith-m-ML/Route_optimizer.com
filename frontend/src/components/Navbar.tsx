@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
+import { encodeTripToUrl } from '../services/tripService';
+import type { SelectedStop, TravelMode } from '../types';
+
 interface NavbarProps {
   tripTitle: string;
   onUpdateTitle: (title: string) => void;
@@ -22,6 +25,8 @@ interface NavbarProps {
   stopsCount: number;
   onOpenMPC: () => void;
   onOpenIPF: () => void;
+  travelMode?: TravelMode;
+  stops?: SelectedStop[];
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +39,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   stopsCount,
   onOpenMPC,
   onOpenIPF,
+  travelMode,
+  stops,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(tripTitle);
@@ -53,9 +60,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleShare = () => {
-    navigator.clipboard?.writeText(window.location.href);
+    const shareUrl = stops && stops.length > 0
+      ? encodeTripToUrl(tripTitle, travelMode || 'DRIVING', stops)
+      : window.location.href;
+    navigator.clipboard?.writeText(shareUrl);
     setShowShareToast(true);
-    setTimeout(() => setShowShareToast(false), 2500);
+    setTimeout(() => setShowShareToast(false), 3000);
   };
 
   const handleLogout = async () => {
@@ -181,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Share2 className="w-4 h-4" />
           {showShareToast && (
             <div className="absolute right-0 top-11 bg-slate-800 text-slate-200 text-[11px] font-medium px-2.5 py-1 rounded-md shadow-lg border border-slate-700 whitespace-nowrap z-50">
-              Link copied!
+              Trip link copied! Open on your phone to view & save.
             </div>
           )}
         </button>

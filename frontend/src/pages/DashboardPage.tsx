@@ -7,7 +7,13 @@ import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
 import type { Destination, SelectedStop, TravelMode } from '../types';
 import { calculateRouteMetrics, optimizeRouteStops } from '../utils/routeOptimizer';
-import { getSavedTrip, saveTripToStorage, clearSavedTrip } from '../services/tripService';
+import { 
+  getSavedTrip, 
+  saveTripToStorage, 
+  clearSavedTrip,
+  getSavedTripFromCloud,
+  decodeTripFromUrl
+} from '../services/tripService';
 import { MPCModal } from '../components/MPC/MPCModal';
 import { IPFModal } from '../components/IPF/IPFModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
@@ -32,8 +38,46 @@ export const DashboardPage: React.FC = () => {
   const [isMPCOpen, setIsMPCOpen] = useState(false);
   const [isIPFOpen, setIsIPFOpen] = useState(false);
 
-  // Sync if saved trip is updated or loaded
+  // Sync if saved trip is updated, shared via URL, or loaded from cloud
   useEffect(() => {
+    // 1. Check for shared trip link in URL (e.g., sent from computer to phone)
+    const hash = window.location.hash || '';
+    const queryPart = hash.includes('?') ? hash.split('?')[1] : window.location.search.replace(/^\?/, '');
+    const searchParams = new URLSearchParams(queryPart);
+    const tripParam = searchParams.get('trip');
+
+    if (tripParam) {
+      const imported = decodeTripFromUrl(tripParam);
+      if (imported && imported.stops.length > 0) {
+        setStops(imported.stops);
+        setTripTitle(imported.title);
+        setTravelMode(imported.travelMode);
+        if (imported.stops[0]) {
+          setActiveStopId(imported.stops[0].id);
+        }
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        saveTripToStorage(
+          {
+            title: imported.title,
+            travelMode: imported.travelMode,
+            stops: imported.stops,
+            lastSavedAt: timeStr,
+          },
+          userId
+        );
+        setLastSavedAt(timeStr);
+        setToast({
+          id: Date.now().toString(),
+          type: 'success',
+          title: 'Shared Trip Imported',
+          description: `Loaded "${imported.title}" with ${imported.stops.length} stop${imported.stops.length === 1 ? '' : 's'} on this device!`,
+        });
+        window.history.replaceState(null, '', window.location.pathname + '#/dashboard');
+        return;
+      }
+    }
+
+    // 2. Load from localStorage
     const loaded = getSavedTrip(userId);
     if (loaded && loaded.stops.length > 0 && stops.length === 0) {
       setStops(loaded.stops);
@@ -44,6 +88,25 @@ export const DashboardPage: React.FC = () => {
         setActiveStopId(loaded.stops[0].id);
       }
     }
+
+    // 3. Check Firebase Firestore cloud database for cross-device sync
+    getSavedTripFromCloud(userId).then((cloudTrip) => {
+      if (cloudTrip && cloudTrip.stops.length > 0 && stops.length === 0) {
+        setStops(cloudTrip.stops);
+        setTripTitle(cloudTrip.title);
+        setTravelMode(cloudTrip.travelMode);
+        setLastSavedAt(cloudTrip.lastSavedAt);
+        if (cloudTrip.stops[0]) {
+          setActiveStopId(cloudTrip.stops[0].id);
+        }
+        setToast({
+          id: Date.now().toString(),
+          type: 'info',
+          title: 'Trip Restored from Cloud',
+          description: `Synced "${cloudTrip.title}" (${cloudTrip.stops.length} stops) from your cloud account.`,
+        });
+      }
+    });
   }, [userId]);
 
   // Mobile active tab toggle ('sidebar' | 'map')
@@ -241,6 +304,8 @@ export const DashboardPage: React.FC = () => {
         stopsCount={stops.length}
         onOpenMPC={() => setIsMPCOpen(true)}
         onOpenIPF={() => setIsIPFOpen(true)}
+        travelMode={travelMode}
+        stops={stops}
       />
 
       {/* Mobile / Tablet Tab Toggle Bar */}
