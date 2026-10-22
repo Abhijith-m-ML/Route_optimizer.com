@@ -48,6 +48,9 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
+      - name: Create 404.html SPA fallback
+        run: cp frontend/dist/index.html frontend/dist/404.html
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v4
 
