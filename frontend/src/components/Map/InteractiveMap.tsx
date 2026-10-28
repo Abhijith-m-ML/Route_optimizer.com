@@ -141,8 +141,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       const map = new mapsLib.Map(mapContainerRef.current, {
         center: MUMBAI_CENTER,
         zoom: DEFAULT_ZOOM,
-        minZoom: 9,
-        maxZoom: 19,
+        minZoom: 1, // Enable full/infinite zoom out (global & national view)
+        maxZoom: 21,
         mapTypeId: 'roadmap',
         styles: currentTheme === 'dark' ? ROUTEWISE_DARK_MAP_STYLE : undefined,
         disableDefaultUI: false,
