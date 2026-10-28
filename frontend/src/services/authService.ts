@@ -11,95 +11,34 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
 
+import { getBackendUrl } from './tripService';
+
 export interface AuthUser {
   uid: string;
   email: string | null;
   displayName: string | null;
   photoURL?: string | null;
+  username?: string;
   isDemo?: boolean;
 }
 
-export interface StoredAccount {
-  identifier: string;
-  email: string;
-  password: string;
-  displayName: string;
-}
-
-const DEMO_STORAGE_KEY = 'routewise_demo_session';
-const ACCOUNTS_STORAGE_KEY = 'routewise_registered_accounts';
-
-export const AUTHORIZED_ACCOUNTS: StoredAccount[] = [
-  {
-    identifier: 'PLUCK',
-    email: 'pluck@routewise.in',
-    password: 'AAA',
-    displayName: 'PLUCK',
-  },
-];
-
-export function getRegisteredAccounts(): StoredAccount[] {
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    const custom: StoredAccount[] = raw ? JSON.parse(raw) : [];
-    const combined = [...AUTHORIZED_ACCOUNTS];
-    for (const item of custom) {
-      if (!combined.some((a) => a.identifier.toLowerCase() === item.identifier.toLowerCase())) {
-        combined.push(item);
-      }
-    }
-    return combined;
-  } catch {
-    return AUTHORIZED_ACCOUNTS;
-  }
-}
-
-export function saveRegisteredAccount(account: StoredAccount): void {
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    const custom: StoredAccount[] = raw ? JSON.parse(raw) : [];
-    const index = custom.findIndex(
-      (a) =>
-        a.identifier.toLowerCase() === account.identifier.toLowerCase() ||
-        a.email.toLowerCase() === account.email.toLowerCase()
-    );
-    if (index >= 0) {
-      custom[index] = account;
-    } else {
-      custom.push(account);
-    }
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(custom));
-  } catch (err) {
-    console.error('Failed to save account:', err);
-  }
-}
+const AUTH_STORAGE_KEY = 'routewise_user_session';
 
 export function isValidAuthorizedUser(user: AuthUser | null): boolean {
-  if (!user) return false;
-  const accounts = getRegisteredAccounts();
-  const userName = (user.displayName || '').trim().toLowerCase();
-  const userEmail = (user.email || '').trim().toLowerCase();
-  return accounts.some(
-    (acc) =>
-      acc.identifier.trim().toLowerCase() === userName ||
-      acc.email.trim().toLowerCase() === userEmail ||
-      acc.identifier.trim().toLowerCase() === userEmail.split('@')[0]
-  );
+  return Boolean(user && (user.uid || user.email));
 }
 
 /**
- * Retrieve active demo session from localStorage if present and valid
+ * Retrieve active session from localStorage if present
  */
 export function getSavedDemoUser(): AuthUser | null {
   try {
-    const saved = localStorage.getItem(DEMO_STORAGE_KEY);
+    const saved = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!saved) return null;
     const user: AuthUser = JSON.parse(saved);
     if (isValidAuthorizedUser(user)) {
       return user;
     }
-    // Remove unauthorized/stale sessions (such as random test logins)
-    localStorage.removeItem(DEMO_STORAGE_KEY);
     return null;
   } catch {
     return null;
@@ -107,17 +46,21 @@ export function getSavedDemoUser(): AuthUser | null {
 }
 
 /**
- * Save demo session to localStorage
+ * Save user session to localStorage
  */
 export function saveDemoUser(user: AuthUser): void {
-  localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+  } catch {}
 }
 
 /**
- * Clear demo session
+ * Clear user session
  */
 export function clearDemoUser(): void {
-  localStorage.removeItem(DEMO_STORAGE_KEY);
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch {}
 }
 
 /**
@@ -159,65 +102,54 @@ export function getAuthErrorMessage(error: unknown): string {
 
 /**
  * Register a new user with email, password, and display name.
- * If Firebase is not configured, provides a seamless local demo registration.
+ * Connects to the central backend API so accounts work across all devices (laptop, phone, etc.).
  */
 export async function registerWithEmail(
   email: string,
   pass: string,
   displayName: string
 ): Promise<AuthUser> {
-  if (!isFirebaseConfigured || !auth) {
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    const accounts = getRegisteredAccounts();
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanId = email.includes('@') ? email.split('@')[0].toLowerCase() : email.trim().toLowerCase();
-
-    const exists = accounts.some(
-      (a) => a.email.toLowerCase() === cleanEmail || a.identifier.toLowerCase() === cleanId
-    );
-    if (exists) {
-      const err = new Error('An account with this email address or ID already exists. Please log in instead.');
-      (err as { code?: string }).code = 'auth/email-already-in-use';
-      throw err;
+  if (isFirebaseConfigured && auth) {
+    const credential = await createUserWithEmailAndPassword(auth, email, pass);
+    if (displayName && credential.user) {
+      await updateProfile(credential.user, { displayName });
     }
-
-    const newAccount: StoredAccount = {
-      identifier: email.includes('@') ? email.split('@')[0] : email.trim(),
-      email: email.includes('@') ? email.trim() : `${email.trim().toLowerCase()}@routewise.in`,
-      password: pass,
-      displayName: displayName.trim() || (email.includes('@') ? email.split('@')[0] : email.trim()),
+    return {
+      uid: credential.user.uid,
+      email: credential.user.email,
+      displayName: credential.user.displayName,
+      photoURL: credential.user.photoURL,
     };
-    saveRegisteredAccount(newAccount);
-
-    const demoUser: AuthUser = {
-      uid: 'user_' + Date.now(),
-      email: newAccount.email,
-      displayName: newAccount.displayName,
-      photoURL: null,
-      isDemo: true,
-    };
-    saveDemoUser(demoUser);
-    return demoUser;
   }
 
-  const credential = await createUserWithEmailAndPassword(auth, email, pass);
-  
-  if (displayName && credential.user) {
-    await updateProfile(credential.user, { displayName });
+  // Real Central Backend Registration (Cross-device sync)
+  const backendUrl = getBackendUrl();
+  const res = await fetch(`${backendUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: pass, displayName }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to create account. Please try again.');
   }
 
-  return {
-    uid: credential.user.uid,
-    email: credential.user.email,
-    displayName: credential.user.displayName,
-    photoURL: credential.user.photoURL,
+  const authUser: AuthUser = {
+    uid: data.user.uid,
+    email: data.user.email,
+    displayName: data.user.displayName || displayName,
+    username: data.user.username,
+    photoURL: null,
   };
+
+  saveDemoUser(authUser);
+  return authUser;
 }
 
 /**
  * Sign in existing user with email/ID and password.
- * Strictly verifies credentials against authorized accounts (e.g. PLUCK / AAA)
- * or registered accounts.
+ * Connects to the central backend API so credentials work on laptop, phone, and tablet.
  */
 export async function loginWithEmail(
   identifier: string,
@@ -228,55 +160,44 @@ export async function loginWithEmail(
   const normalizedEmail = isEmail ? identifier : `${identifier.toLowerCase()}@routewise.in`;
   const displayName = isEmail ? identifier.split('@')[0] : identifier;
 
-  if (!isFirebaseConfigured || !auth) {
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    const accounts = getRegisteredAccounts();
-    const cleanInputId = identifier.trim().toLowerCase();
-
-    // Find account by either ID or Email (case-insensitive)
-    const matchedAccount = accounts.find(
-      (acc) =>
-        acc.identifier.trim().toLowerCase() === cleanInputId ||
-        acc.email.trim().toLowerCase() === cleanInputId
-    );
-
-    if (!matchedAccount) {
-      const err = new Error('Invalid ID or email address. Please check your credentials and try again.');
-      (err as { code?: string }).code = 'auth/user-not-found';
-      throw err;
-    }
-
-    // Verify exact password match
-    if (matchedAccount.password !== pass) {
-      const err = new Error('Incorrect password. Please verify your password and try again.');
-      (err as { code?: string }).code = 'auth/wrong-password';
-      throw err;
-    }
-
-    const authorizedUser: AuthUser = {
-      uid: 'user_' + matchedAccount.identifier.toLowerCase(),
-      email: matchedAccount.email,
-      displayName: matchedAccount.displayName,
-      photoURL: null,
-      isDemo: true,
+  if (isFirebaseConfigured && auth) {
+    const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+    await setPersistence(auth, persistenceType);
+    const credential = await signInWithEmailAndPassword(auth, normalizedEmail, pass);
+    return {
+      uid: credential.user.uid,
+      email: credential.user.email,
+      displayName: credential.user.displayName || displayName,
+      photoURL: credential.user.photoURL,
     };
-
-    if (rememberMe) {
-      saveDemoUser(authorizedUser);
-    }
-    return authorizedUser;
   }
 
-  const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
-  await setPersistence(auth, persistenceType);
+  // Real Central Backend Login
+  const backendUrl = getBackendUrl();
+  const res = await fetch(`${backendUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifier, password: pass }),
+  });
 
-  const credential = await signInWithEmailAndPassword(auth, normalizedEmail, pass);
-  return {
-    uid: credential.user.uid,
-    email: credential.user.email,
-    displayName: credential.user.displayName || displayName,
-    photoURL: credential.user.photoURL,
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Invalid credentials. Please verify your email/ID and password.');
+  }
+
+  const authUser: AuthUser = {
+    uid: data.user.uid,
+    email: data.user.email,
+    displayName: data.user.displayName || data.user.username || displayName,
+    username: data.user.username,
+    photoURL: null,
   };
+
+  if (rememberMe) {
+    saveDemoUser(authUser);
+  }
+
+  return authUser;
 }
 
 /**

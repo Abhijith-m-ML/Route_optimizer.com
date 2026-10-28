@@ -128,7 +128,7 @@ export async function saveTripToStorage(
     stops: tripData.stops,
     lastSavedAt: tripData.lastSavedAt,
     updatedAt: new Date().toISOString(),
-    userId: userId || 'pluck',
+    userId: userId || 'guest',
   };
 
   const serialized = JSON.stringify(trip);

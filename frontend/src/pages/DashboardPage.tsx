@@ -20,7 +20,7 @@ import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
-  const userId = user?.displayName || user?.uid || 'pluck';
+  const userId = user?.uid || user?.email || user?.displayName || 'guest';
 
   // Load previously saved trip from localStorage
   const savedTrip = useMemo(() => getSavedTrip(userId), [userId]);
