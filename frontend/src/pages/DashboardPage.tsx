@@ -89,21 +89,27 @@ export const DashboardPage: React.FC = () => {
       }
     }
 
-    // 3. Check Firebase Firestore cloud database for cross-device sync
+    // 3. Check Cloud (Firebase or Backend API) for cross-device sync between laptop & phone
     getSavedTripFromCloud(userId).then((cloudTrip) => {
-      if (cloudTrip && cloudTrip.stops.length > 0 && stops.length === 0) {
-        setStops(cloudTrip.stops);
-        setTripTitle(cloudTrip.title);
-        setTravelMode(cloudTrip.travelMode);
-        setLastSavedAt(cloudTrip.lastSavedAt);
-        if (cloudTrip.stops[0]) {
-          setActiveStopId(cloudTrip.stops[0].id);
-        }
-        setToast({
-          id: Date.now().toString(),
-          type: 'info',
-          title: 'Trip Restored from Cloud',
-          description: `Synced "${cloudTrip.title}" (${cloudTrip.stops.length} stops) from your cloud account.`,
+      if (cloudTrip && Array.isArray(cloudTrip.stops) && cloudTrip.stops.length > 0) {
+        setStops((currentStops) => {
+          // If no stops are currently loaded in this session, restore cloud trip
+          if (currentStops.length === 0) {
+            setTripTitle(cloudTrip.title);
+            setTravelMode(cloudTrip.travelMode);
+            setLastSavedAt(cloudTrip.lastSavedAt);
+            if (cloudTrip.stops[0]) {
+              setActiveStopId(cloudTrip.stops[0].id);
+            }
+            setToast({
+              id: Date.now().toString(),
+              type: 'info',
+              title: 'Trip Restored from Cloud',
+              description: `Synced "${cloudTrip.title}" (${cloudTrip.stops.length} stops) from your cloud account.`,
+            });
+            return cloudTrip.stops;
+          }
+          return currentStops;
         });
       }
     });

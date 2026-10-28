@@ -43,6 +43,23 @@ export function getSavedTrip(userId?: string | null): SavedTrip | null {
 }
 
 /**
+ * Resolves the backend URL dynamically (uses VITE_BACKEND_URL or defaults to deployed Render backend in production)
+ */
+export function getBackendUrl(): string {
+  if (import.meta.env.VITE_BACKEND_URL) {
+    return (import.meta.env.VITE_BACKEND_URL as string).replace(/\/+$/, '');
+  }
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return 'https://vazhikatti.onrender.com';
+  }
+  return 'http://localhost:5000';
+}
+
+/**
  * Retrieve saved trip from Cloud (Firebase Firestore or Backend API for cross-device sync)
  */
 export async function getSavedTripFromCloud(userId?: string | null): Promise<SavedTrip | null> {
@@ -70,7 +87,7 @@ export async function getSavedTripFromCloud(userId?: string | null): Promise<Sav
 
   // 2. Try Backend API (enables laptop <-> phone synchronization via your Render backend)
   try {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     const res = await fetch(`${backendUrl}/api/trips/${cleanId}`);
     if (res.ok) {
       const json = await res.json();
@@ -86,7 +103,7 @@ export async function getSavedTripFromCloud(userId?: string | null): Promise<Sav
       }
     }
   } catch (backendErr) {
-    // Backend offline or not configured
+    // Backend offline or warming up
   }
 
   return null;
@@ -111,7 +128,7 @@ export async function saveTripToStorage(
     stops: tripData.stops,
     lastSavedAt: tripData.lastSavedAt,
     updatedAt: new Date().toISOString(),
-    userId: userId || undefined,
+    userId: userId || 'pluck',
   };
 
   const serialized = JSON.stringify(trip);
@@ -137,9 +154,9 @@ export async function saveTripToStorage(
     }
   }
 
-  // 3. Secondary persistence: Backend API (if backend server is configured)
+  // 3. Secondary persistence: Backend API (cross-device sync via backend)
   try {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     await fetch(`${backendUrl}/api/trips`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -173,7 +190,7 @@ export async function clearSavedTrip(userId?: string | null): Promise<void> {
 
   // Clear from backend API
   try {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = getBackendUrl();
     const cleanId = userId ? userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_') : 'default';
     await fetch(`${backendUrl}/api/trips/${cleanId}`, { method: 'DELETE' }).catch(() => {});
   } catch {}

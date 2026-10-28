@@ -1,8 +1,37 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_FILE = path.join(__dirname, '..', 'trips_data.json');
+
+function loadPersistedTrips(): Map<string, any> {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      return new Map(Object.entries(data));
+    }
+  } catch (err) {
+    console.warn('[RouteWise API] Could not read trips_data.json:', err);
+  }
+  return new Map();
+}
+
+function persistTrips(trips: Map<string, any>) {
+  try {
+    const obj = Object.fromEntries(trips);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[RouteWise API] Could not write trips_data.json:', err);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,14 +89,15 @@ app.post('/api/routes/optimize', (req: Request, res: Response) => {
   });
 });
 
-// Cross-Device Trip Storage (in-memory store keyed by userId)
-const savedTripsMap = new Map<string, any>();
+// Cross-Device Trip Storage (disk-persisted & memory-cached keyed by userId)
+const savedTripsMap = loadPersistedTrips();
 
 // Save Trip Endpoint
 app.post('/api/trips', (req: Request, res: Response) => {
   const tripData = req.body;
   const userKey = (tripData.userId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   savedTripsMap.set(userKey, tripData);
+  persistTrips(savedTripsMap);
   res.status(201).json({
     message: 'Trip saved successfully',
     tripId: tripData.id || ('trip_' + Date.now()),
@@ -91,6 +121,7 @@ app.delete('/api/trips/:userId', (req: Request, res: Response) => {
   const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
   const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   savedTripsMap.delete(userKey);
+  persistTrips(savedTripsMap);
   res.json({ success: true, message: 'Trip deleted successfully' });
 });
 
