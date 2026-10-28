@@ -43,30 +43,53 @@ export function getSavedTrip(userId?: string | null): SavedTrip | null {
 }
 
 /**
- * Retrieve saved trip from Firebase Firestore cloud storage (cross-device sync)
+ * Retrieve saved trip from Cloud (Firebase Firestore or Backend API for cross-device sync)
  */
 export async function getSavedTripFromCloud(userId?: string | null): Promise<SavedTrip | null> {
-  if (!db || !userId) return null;
+  const cleanId = userId ? userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_') : 'default';
+
+  // 1. Try Firebase Firestore (if configured)
+  if (db && userId) {
+    try {
+      const tripDocRef = doc(db, 'trips', cleanId);
+      const snap = await getDoc(tripDocRef);
+      if (snap.exists()) {
+        const data = snap.data() as SavedTrip;
+        if (data && Array.isArray(data.stops)) {
+          try {
+            localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
+            localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
+          } catch {}
+          return data;
+        }
+      }
+    } catch (err) {
+      console.warn('[RouteWise] Cloud trip fetch non-fatal error:', err);
+    }
+  }
+
+  // 2. Try Backend API (enables laptop <-> phone synchronization via your Render backend)
   try {
-    const cleanId = userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-    const tripDocRef = doc(db, 'trips', cleanId);
-    const snap = await getDoc(tripDocRef);
-    if (snap.exists()) {
-      const data = snap.data() as SavedTrip;
-      if (data && Array.isArray(data.stops)) {
-        // Also update local storage cache for offline availability
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const res = await fetch(`${backendUrl}/api/trips/${cleanId}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.trip && Array.isArray(json.trip.stops)) {
+        const data = json.trip as SavedTrip;
         try {
-          localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
+          if (userId) {
+            localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
+          }
           localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
         } catch {}
         return data;
       }
     }
-    return null;
-  } catch (err) {
-    console.warn('[RouteWise] Cloud trip fetch non-fatal error:', err);
-    return null;
+  } catch (backendErr) {
+    // Backend offline or not configured
   }
+
+  return null;
 }
 
 /**
@@ -147,6 +170,13 @@ export async function clearSavedTrip(userId?: string | null): Promise<void> {
       await deleteDoc(tripDocRef);
     } catch {}
   }
+
+  // Clear from backend API
+  try {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const cleanId = userId ? userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_') : 'default';
+    await fetch(`${backendUrl}/api/trips/${cleanId}`, { method: 'DELETE' }).catch(() => {});
+  } catch {}
 }
 
 /**

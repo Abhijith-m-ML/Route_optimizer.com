@@ -60,14 +60,38 @@ app.post('/api/routes/optimize', (req: Request, res: Response) => {
   });
 });
 
-// Mock Trips Persistence Endpoint
+// Cross-Device Trip Storage (in-memory store keyed by userId)
+const savedTripsMap = new Map<string, any>();
+
+// Save Trip Endpoint
 app.post('/api/trips', (req: Request, res: Response) => {
   const tripData = req.body;
+  const userKey = (tripData.userId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  savedTripsMap.set(userKey, tripData);
   res.status(201).json({
     message: 'Trip saved successfully',
-    tripId: 'trip_' + Date.now(),
+    tripId: tripData.id || ('trip_' + Date.now()),
     trip: tripData,
   });
+});
+
+// Retrieve Trip Endpoint (for cross-device synchronization between laptop & phone)
+app.get('/api/trips/:userId', (req: Request, res: Response) => {
+  const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  const trip = savedTripsMap.get(userKey);
+  if (trip) {
+    return res.json({ success: true, trip });
+  }
+  return res.status(404).json({ success: false, message: 'No saved trip found' });
+});
+
+// Delete Trip Endpoint
+app.delete('/api/trips/:userId', (req: Request, res: Response) => {
+  const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+  const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  savedTripsMap.delete(userKey);
+  res.json({ success: true, message: 'Trip deleted successfully' });
 });
 
 app.listen(PORT, () => {
