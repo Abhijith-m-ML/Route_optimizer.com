@@ -114,9 +114,10 @@ export async function saveTripToStorage(
     }
   }
 
-  // 3. Secondary persistence: Backend API (if local dev server is running)
+  // 3. Secondary persistence: Backend API (if backend server is configured)
   try {
-    await fetch('http://localhost:5000/api/trips', {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    await fetch(`${backendUrl}/api/trips`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: serialized,
