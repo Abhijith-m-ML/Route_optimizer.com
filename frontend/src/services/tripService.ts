@@ -46,9 +46,18 @@ export function getSavedTrip(userId?: string | null): SavedTrip | null {
  * Resolves the backend URL dynamically (uses VITE_BACKEND_URL or defaults to deployed Render backend in production)
  */
 export function getBackendUrl(): string {
-  if (import.meta.env.VITE_BACKEND_URL) {
-    return (import.meta.env.VITE_BACKEND_URL as string).replace(/\/+$/, '');
+  const envUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.trim();
+
+  // If custom environment variable is set and NOT pointing to obsolete subdomains, use it
+  if (
+    envUrl &&
+    !envUrl.includes('vazhikatti.onrender.com') &&
+    !envUrl.includes('vazhikatti-api.onrender.com')
+  ) {
+    return envUrl.replace(/\/+$/, '');
   }
+
+  // Deployed web environments (Vercel, GitHub Pages, custom domain)
   if (
     typeof window !== 'undefined' &&
     window.location.hostname !== 'localhost' &&
@@ -56,6 +65,7 @@ export function getBackendUrl(): string {
   ) {
     return 'https://vazhikatti-gfuq.onrender.com';
   }
+
   return 'http://localhost:5000';
 }
 

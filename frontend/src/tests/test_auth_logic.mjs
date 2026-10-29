@@ -104,8 +104,13 @@ function isValidAuthorizedUser(user) {
 
 // 6. Test production backend URL resolution
 function getBackendUrl(envBackendUrl, hostname) {
-  if (envBackendUrl) {
-    return envBackendUrl.replace(/\/+$/, '');
+  const envUrl = envBackendUrl?.trim();
+  if (
+    envUrl &&
+    !envUrl.includes('vazhikatti.onrender.com') &&
+    !envUrl.includes('vazhikatti-api.onrender.com')
+  ) {
+    return envUrl.replace(/\/+$/, '');
   }
   if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
     return 'https://vazhikatti-gfuq.onrender.com';
@@ -177,11 +182,21 @@ assert.strictEqual(
   'Explicit VITE_BACKEND_URL must take precedence and strip trailing slashes'
 );
 assert.strictEqual(
+  getBackendUrl('https://vazhikatti.onrender.com', 'vazhikatti-route.vercel.app'),
+  'https://vazhikatti-gfuq.onrender.com',
+  'Obsolete vazhikatti.onrender.com must be sanitized to vazhikatti-gfuq.onrender.com'
+);
+assert.strictEqual(
+  getBackendUrl('https://vazhikatti-api.onrender.com', 'vazhikatti-route.vercel.app'),
+  'https://vazhikatti-gfuq.onrender.com',
+  'Obsolete vazhikatti-api.onrender.com must be sanitized to vazhikatti-gfuq.onrender.com'
+);
+assert.strictEqual(
   getBackendUrl(undefined, 'localhost'),
   'http://localhost:5000',
   'Localhost development defaults to http://localhost:5000'
 );
-console.log('✓ Backend URL resolution logic passed');
+console.log('✓ Backend URL resolution and obsolete subdomain sanitization passed');
 
 // Test 6: Token expiration validation
 const nowSeconds = Math.floor(Date.now() / 1000);
