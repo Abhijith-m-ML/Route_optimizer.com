@@ -215,6 +215,25 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
+// Root health-check endpoint
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'Route Optimizer API',
+    project: 'Smart Mumbai Travel Planner (RouteWise)',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      register: 'POST /api/auth/register',
+      login: 'POST /api/auth/login',
+      me: 'GET /api/auth/me',
+      dashboard: 'GET /api/dashboard/summary',
+      trips: '/api/trips',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
@@ -446,7 +465,15 @@ app.delete('/api/trips/:userId', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Trip deleted successfully' });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+const isDirectExecution = Boolean(
+  process.argv[1] && (
+    fileURLToPath(import.meta.url) === path.resolve(process.argv[1]) ||
+    process.argv[1].endsWith('server.ts') ||
+    process.argv[1].endsWith('server.js')
+  )
+);
+
+if (isDirectExecution && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`[RouteWise API] Server running on http://localhost:${PORT}`);
   });

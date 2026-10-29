@@ -108,7 +108,7 @@ function getBackendUrl(envBackendUrl, hostname) {
     return envBackendUrl.replace(/\/+$/, '');
   }
   if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return 'https://vazhikatti-api.onrender.com';
+    return 'https://vazhikatti-gfuq.onrender.com';
   }
   return 'http://localhost:5000';
 }
@@ -168,8 +168,8 @@ console.log('✓ Login form validation (empty/short/valid inputs) passed');
 // Test 5: Production Backend URL resolution
 assert.strictEqual(
   getBackendUrl(undefined, 'vazhikatti-route.vercel.app'),
-  'https://vazhikatti-api.onrender.com',
-  'Production Vercel deployment must point to https://vazhikatti-api.onrender.com'
+  'https://vazhikatti-gfuq.onrender.com',
+  'Production Vercel deployment must point to https://vazhikatti-gfuq.onrender.com'
 );
 assert.strictEqual(
   getBackendUrl('https://custom-api.example.com/', 'vazhikatti-route.vercel.app'),
