@@ -54,7 +54,7 @@ export function getBackendUrl(): string {
     window.location.hostname !== 'localhost' &&
     window.location.hostname !== '127.0.0.1'
   ) {
-    return 'https://vazhikatti.onrender.com';
+    return 'https://vazhikatti-api.onrender.com';
   }
   return 'http://localhost:5000';
 }

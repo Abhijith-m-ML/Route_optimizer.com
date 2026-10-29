@@ -21,7 +21,7 @@ export const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
-  const { login, loginWithGoogle, isConfigured, formatAuthError } = useAuth();
+  const { login, loginWithGoogle, formatAuthError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -41,7 +41,7 @@ export const LoginPage: React.FC = () => {
 
     if (!password) {
       newErrors.password = 'Password is required';
-    } else if (isConfigured && password.length < 6) {
+    } else if (password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
 

@@ -10,6 +10,8 @@ import {
   requestPasswordReset,
   getAuthErrorMessage,
   getSavedDemoUser,
+  clearDemoUser,
+  verifyBackendSession,
   type AuthUser,
 } from '../services/authService';
 
@@ -52,10 +54,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return () => unsubscribe();
     }
 
-    // Otherwise, check for local demo session
+    // Otherwise, check for local session
     const savedDemo = getSavedDemoUser();
     if (savedDemo) {
       setUser(savedDemo);
+      // Asynchronously verify token with backend if present
+      if (savedDemo.token && !savedDemo.isDemo) {
+        verifyBackendSession(savedDemo.token).then((isValid) => {
+          if (!isValid) {
+            clearDemoUser();
+            setUser(null);
+          }
+        });
+      }
     }
     setLoading(false);
   }, []);

@@ -20,16 +20,46 @@ export interface AuthUser {
   photoURL?: string | null;
   username?: string;
   isDemo?: boolean;
+  token?: string;
 }
 
 const AUTH_STORAGE_KEY = 'routewise_user_session';
 
+/**
+ * Check if the user object has valid credentials and has not expired
+ */
 export function isValidAuthorizedUser(user: AuthUser | null): boolean {
-  return Boolean(user && (user.uid || user.email));
+  if (!user || (!user.uid && !user.email)) return false;
+
+  // Check token expiration if JWT token is stored
+  if (user.token) {
+    try {
+      const parts = user.token.split('.');
+      if (parts.length === 3) {
+        // Base64Url decode without external library
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+        );
+        const payload = JSON.parse(jsonPayload);
+        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+          return false; // Token expired
+        }
+      }
+    } catch {
+      // In case of unparseable token format, consider invalid
+      return false;
+    }
+  }
+
+  return true;
 }
 
 /**
- * Retrieve active session from localStorage if present
+ * Retrieve active session from localStorage if present and valid
  */
 export function getSavedDemoUser(): AuthUser | null {
   try {
@@ -39,23 +69,35 @@ export function getSavedDemoUser(): AuthUser | null {
     if (isValidAuthorizedUser(user)) {
       return user;
     }
+    clearDemoUser();
     return null;
   } catch {
+    clearDemoUser();
     return null;
   }
 }
 
 /**
- * Save user session to localStorage
+ * Save user session to localStorage (NEVER stores passwords)
  */
 export function saveDemoUser(user: AuthUser): void {
   try {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    // Ensure passwords or raw secrets are never persisted
+    const safeUser: AuthUser = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      username: user.username,
+      photoURL: user.photoURL || null,
+      isDemo: user.isDemo,
+      token: user.token,
+    };
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(safeUser));
   } catch {}
 }
 
 /**
- * Clear user session
+ * Clear user session from localStorage
  */
 export function clearDemoUser(): void {
   try {
@@ -69,8 +111,8 @@ export function clearDemoUser(): void {
 export function getAuthErrorMessage(error: unknown): string {
   if (!error) return 'An unknown error occurred.';
 
-  const firebaseError = error as { code?: string; message?: string };
-  const code = firebaseError.code || '';
+  const errObj = error as { code?: string; message?: string };
+  const code = errObj.code || '';
 
   switch (code) {
     case 'auth/invalid-credential':
@@ -96,76 +138,80 @@ export function getAuthErrorMessage(error: unknown): string {
     case 'auth/network-request-failed':
       return 'Network connection error. Please check your connection and try again.';
     default:
-      return firebaseError.message || 'Authentication failed. Please try again.';
+      return errObj.message || 'Authentication failed. Please check your credentials and try again.';
   }
 }
 
 /**
  * Register a new user with email, password, and display name.
- * Connects to the central backend API so accounts work across all devices (laptop, phone, etc.).
+ * Connects to the central backend API and returns authenticated user with token.
+ * Throws an error on duplicate registrations or validation failures.
  */
 export async function registerWithEmail(
   email: string,
   pass: string,
   displayName: string
 ): Promise<AuthUser> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) {
+    throw new Error('Email address is required.');
+  }
+  if (!pass) {
+    throw new Error('Password is required.');
+  }
+  if (pass.length < 6) {
+    throw new Error('Password must be at least 6 characters.');
+  }
+
+  // 1. Firebase Auth (if configured)
   if (isFirebaseConfigured && auth) {
-    const credential = await createUserWithEmailAndPassword(auth, email, pass);
+    const credential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
     if (displayName && credential.user) {
       await updateProfile(credential.user, { displayName });
     }
-    return {
+    const authUser: AuthUser = {
       uid: credential.user.uid,
       email: credential.user.email,
-      displayName: credential.user.displayName,
+      displayName: credential.user.displayName || displayName,
       photoURL: credential.user.photoURL,
     };
+    saveDemoUser(authUser);
+    return authUser;
   }
 
-  // Real Central Backend Registration (with graceful offline fallback)
-  let authUser: AuthUser | null = null;
+  // 2. Real Central Backend Registration
+  const backendUrl = getBackendUrl();
+  let res: Response;
   try {
-    const backendUrl = getBackendUrl();
-    const res = await fetch(`${backendUrl}/api/auth/register`, {
+    res = await fetch(`${backendUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pass, displayName }),
+      body: JSON.stringify({ email: cleanEmail, password: pass, displayName }),
     });
-
-    if (res.ok) {
-      const data = await res.json();
-      authUser = {
-        uid: data.user.uid,
-        email: data.user.email,
-        displayName: data.user.displayName || displayName,
-        username: data.user.username,
-        photoURL: null,
-      };
-    } else {
-      const data = await res.json().catch(() => null);
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-    }
   } catch (err: any) {
-    // If it's a backend validation message (e.g. duplicate email), rethrow it
-    if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed') && !err.message.includes('NetworkError')) {
-      throw err;
-    }
-    // Network / 404 error: create account locally so user is never blocked
+    console.error('[RouteWise Auth] Registration connection failed:', err);
+    throw new Error('Unable to connect to the authentication server. Please check your internet connection and try again.');
   }
 
-  if (!authUser) {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanId = cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail;
-    authUser = {
-      uid: 'usr_' + Date.now() + '_' + cleanId,
-      email: cleanEmail,
-      displayName: displayName.trim() || cleanId,
-      username: cleanId,
-      photoURL: null,
-    };
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const msg = data?.error || `Registration failed (Status ${res.status}).`;
+    throw new Error(msg);
   }
+
+  if (!data?.success || !data?.user) {
+    throw new Error('Registration failed. Invalid response from authentication server.');
+  }
+
+  const authUser: AuthUser = {
+    uid: data.user.uid,
+    email: data.user.email,
+    displayName: data.user.displayName || displayName,
+    username: data.user.username,
+    token: data.token,
+    photoURL: null,
+  };
 
   saveDemoUser(authUser);
   return authUser;
@@ -173,76 +219,105 @@ export async function registerWithEmail(
 
 /**
  * Sign in existing user with email/ID and password.
- * Connects to the central backend API with graceful offline fallback.
+ * Connects to the central backend API and strictly validates credentials.
+ * Rejects invalid credentials and never creates dummy users.
  */
 export async function loginWithEmail(
   identifier: string,
   pass: string,
   rememberMe: boolean = true
 ): Promise<AuthUser> {
-  const isEmail = identifier.includes('@');
-  const normalizedEmail = isEmail ? identifier : `${identifier.toLowerCase()}@routewise.in`;
-  const displayName = isEmail ? identifier.split('@')[0] : identifier;
+  const trimmedId = identifier.trim();
+  if (!trimmedId) {
+    throw new Error('User ID or Email is required.');
+  }
+  if (!pass) {
+    throw new Error('Password is required.');
+  }
 
+  // 1. Firebase Auth (if configured)
   if (isFirebaseConfigured && auth) {
+    const isEmail = trimmedId.includes('@');
+    const normalizedEmail = isEmail ? trimmedId : `${trimmedId.toLowerCase()}@routewise.in`;
+    const displayName = isEmail ? trimmedId.split('@')[0] : trimmedId;
     const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
     await setPersistence(auth, persistenceType);
     const credential = await signInWithEmailAndPassword(auth, normalizedEmail, pass);
-    return {
+    const authUser: AuthUser = {
       uid: credential.user.uid,
       email: credential.user.email,
       displayName: credential.user.displayName || displayName,
       photoURL: credential.user.photoURL,
     };
+    if (rememberMe) {
+      saveDemoUser(authUser);
+    } else {
+      clearDemoUser();
+    }
+    return authUser;
   }
 
-  // Real Central Backend Login (with graceful offline fallback)
-  let authUser: AuthUser | null = null;
+  // 2. Real Central Backend Login
+  const backendUrl = getBackendUrl();
+  let res: Response;
   try {
-    const backendUrl = getBackendUrl();
-    const res = await fetch(`${backendUrl}/api/auth/login`, {
+    res = await fetch(`${backendUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password: pass }),
+      body: JSON.stringify({ identifier: trimmedId, password: pass }),
     });
-
-    if (res.ok) {
-      const data = await res.json();
-      authUser = {
-        uid: data.user.uid,
-        email: data.user.email,
-        displayName: data.user.displayName || data.user.username || displayName,
-        username: data.user.username,
-        photoURL: null,
-      };
-    } else {
-      const data = await res.json().catch(() => null);
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-    }
   } catch (err: any) {
-    if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed') && !err.message.includes('NetworkError')) {
-      throw err;
-    }
+    console.error('[RouteWise Auth] Login connection failed:', err);
+    throw new Error('Unable to connect to the authentication server. Please check your internet connection and verify the backend is running.');
   }
 
-  if (!authUser) {
-    const cleanId = identifier.trim().toLowerCase();
-    authUser = {
-      uid: 'usr_' + (cleanId.includes('@') ? cleanId.split('@')[0] : cleanId),
-      email: cleanId.includes('@') ? cleanId : `${cleanId}@routewise.in`,
-      displayName: cleanId.includes('@') ? cleanId.split('@')[0] : cleanId,
-      username: cleanId.includes('@') ? cleanId.split('@')[0] : cleanId,
-      photoURL: null,
-    };
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const defaultMsg = res.status === 401
+      ? 'Invalid credentials. Please verify your username/email and password.'
+      : `Authentication failed (Status ${res.status}).`;
+    const msg = data?.error || defaultMsg;
+    throw new Error(msg);
   }
+
+  if (!data?.success || !data?.user) {
+    throw new Error('Authentication failed. Invalid response from server.');
+  }
+
+  const authUser: AuthUser = {
+    uid: data.user.uid,
+    email: data.user.email,
+    displayName: data.user.displayName || data.user.username || trimmedId,
+    username: data.user.username,
+    token: data.token,
+    photoURL: null,
+  };
 
   if (rememberMe) {
     saveDemoUser(authUser);
+  } else {
+    clearDemoUser();
   }
 
   return authUser;
+}
+
+/**
+ * Verify current session with the backend
+ */
+export async function verifyBackendSession(token: string): Promise<boolean> {
+  try {
+    const backendUrl = getBackendUrl();
+    const res = await fetch(`${backendUrl}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /**
