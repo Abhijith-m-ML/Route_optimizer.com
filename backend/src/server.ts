@@ -12,6 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_FILE = path.join(__dirname, '..', 'trips_data.json');
 const USERS_FILE = path.join(__dirname, '..', 'users_data.json');
+const SHARED_TRIPS_FILE = path.join(__dirname, '..', 'shared_trips.json');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'routewise_jwt_secret_mumbai_secure_key_2026';
 
@@ -34,6 +35,18 @@ export interface TokenPayload {
 
 export interface AuthenticatedRequest extends Request {
   user?: UserRecord;
+}
+
+export interface SharedTripRecord {
+  shareId: string;
+  title: string;
+  selectedState: string;
+  stops: any[];
+  travelMode: string;
+  ownerName?: string;
+  userId?: string;
+  totalDestinations: number;
+  createdAt: string;
 }
 
 export function hashPassword(password: string): string {
@@ -158,6 +171,30 @@ function persistTrips(trips: Map<string, any>) {
 
 export const savedTripsMap = loadPersistedTrips();
 
+function loadPersistedSharedTrips(): Map<string, SharedTripRecord> {
+  try {
+    if (fs.existsSync(SHARED_TRIPS_FILE)) {
+      const raw = fs.readFileSync(SHARED_TRIPS_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      return new Map(Object.entries(data));
+    }
+  } catch (err) {
+    console.warn('[RouteWise API] Could not read shared_trips.json:', err);
+  }
+  return new Map();
+}
+
+function persistSharedTrips(trips: Map<string, SharedTripRecord>) {
+  try {
+    const obj = Object.fromEntries(trips);
+    fs.writeFileSync(SHARED_TRIPS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[RouteWise API] Could not write shared_trips.json:', err);
+  }
+}
+
+export const sharedTripsMap = loadPersistedSharedTrips();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -220,8 +257,8 @@ app.get('/', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     service: 'Route Optimizer API',
-    project: 'Smart Mumbai Travel Planner (RouteWise)',
-    version: '1.0.0',
+    project: 'Smart Travel Planner (RouteWise)',
+    version: '1.1.0',
     endpoints: {
       health: '/api/health',
       register: 'POST /api/auth/register',
@@ -229,6 +266,8 @@ app.get('/', (_req: Request, res: Response) => {
       me: 'GET /api/auth/me',
       dashboard: 'GET /api/dashboard/summary',
       trips: '/api/trips',
+      share: 'POST /api/trips/share',
+      getShare: 'GET /api/trips/share/:shareId',
     },
     timestamp: new Date().toISOString(),
   });
@@ -238,8 +277,9 @@ app.get('/', (_req: Request, res: Response) => {
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    project: 'Smart Mumbai Travel Planner (RouteWise)',
+    project: 'Smart Travel Planner (RouteWise)',
     usersCount: usersMap.size,
+    sharedTripsCount: sharedTripsMap.size,
     timestamp: new Date().toISOString(),
   });
 });
@@ -500,6 +540,113 @@ app.delete('/api/trips/:userId', (req: Request, res: Response) => {
   savedTripsMap.delete(userKey);
   persistTrips(savedTripsMap);
   res.json({ success: true, message: 'Trip deleted successfully' });
+});
+
+/**
+ * State-Based Sharing Endpoints:
+ * - POST /api/trips/share: Create a shareable itinerary filtered strictly to selectedState.
+ * - GET  /api/trips/share/:shareId: Publicly view destination list preview without exposing credentials.
+ */
+app.post('/api/trips/share', (req: Request, res: Response) => {
+  try {
+    const { title, selectedState, stops, travelMode, ownerName, userId } = req.body;
+
+    if (!Array.isArray(stops) || stops.length === 0) {
+      return res.status(400).json({ error: 'No destinations provided to share.' });
+    }
+
+    const stateFilter = (selectedState || 'All States').trim();
+    let filteredStops = stops;
+
+    // Strict state filtering on backend to prevent data leakage of unselected states
+    if (stateFilter !== 'All States' && stateFilter !== 'ALL') {
+      const targetState = stateFilter.toLowerCase();
+      filteredStops = stops.filter((s: any) => {
+        const itemState = (s.state || '').trim().toLowerCase();
+        return itemState === targetState || itemState.includes(targetState) || targetState.includes(itemState);
+      });
+    }
+
+    if (filteredStops.length === 0) {
+      return res.status(400).json({
+        error: `No destinations found matching state "${stateFilter}".`,
+      });
+    }
+
+    // Sanitize destination objects (exclude sensitive internals, ensure state/city metadata preserved)
+    const sanitizedStops = filteredStops.map((s: any, idx: number) => ({
+      id: s.id || `stop_${idx}_${Date.now()}`,
+      placeId: s.placeId || '',
+      name: s.name || 'Destination',
+      address: s.address || '',
+      shortAddress: s.shortAddress || s.address || '',
+      city: s.city || undefined,
+      state: s.state || undefined,
+      stateCode: s.stateCode || undefined,
+      country: s.country || 'India',
+      coordinates: s.coordinates || { lat: 20.5937, lng: 78.9629 },
+      category: s.category || 'heritage',
+      rating: s.rating || 4.5,
+      reviewsCount: s.reviewsCount || 100,
+      typicalVisitDurationMinutes: s.typicalVisitDurationMinutes || 60,
+      customDurationMinutes: s.customDurationMinutes || s.typicalVisitDurationMinutes || 60,
+      stopOrder: idx + 1,
+      photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80',
+      tags: s.tags || [],
+    }));
+
+    const shareId = 'shr_' + crypto.randomBytes(6).toString('hex');
+    const newRecord: SharedTripRecord = {
+      shareId,
+      title: title || 'Shared Destinations',
+      selectedState: stateFilter,
+      stops: sanitizedStops,
+      travelMode: travelMode || 'DRIVING',
+      ownerName: ownerName || 'Traveler',
+      userId: userId || undefined,
+      totalDestinations: sanitizedStops.length,
+      createdAt: new Date().toISOString(),
+    };
+
+    sharedTripsMap.set(shareId, newRecord);
+    persistSharedTrips(sharedTripsMap);
+
+    return res.status(201).json({
+      success: true,
+      shareId,
+      selectedState: stateFilter,
+      totalDestinations: sanitizedStops.length,
+      stops: sanitizedStops,
+      createdAt: newRecord.createdAt,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to generate share link' });
+  }
+});
+
+app.get('/api/trips/share/:shareId', (req: Request, res: Response) => {
+  const rawId = req.params.shareId;
+  const shareId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const record = sharedTripsMap.get(shareId);
+
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'Shared destination list not found or expired.' });
+  }
+
+  // Return public sanitized preview payload
+  return res.json({
+    success: true,
+    share: {
+      shareId: record.shareId,
+      title: record.title,
+      selectedState: record.selectedState,
+      stops: record.stops,
+      travelMode: record.travelMode,
+      ownerName: record.ownerName,
+      totalDestinations: record.totalDestinations,
+      createdAt: record.createdAt,
+    },
+  });
 });
 
 const isDirectExecution = Boolean(

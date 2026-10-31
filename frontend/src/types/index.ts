@@ -18,6 +18,10 @@ export interface PlaceSuggestion {
   secondaryText: string;
   fullText: string;
   types?: string[];
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  isPrioritized?: boolean;
 }
 
 export interface Destination {
@@ -29,6 +33,10 @@ export interface Destination {
   description: string;
   address: string;
   shortAddress?: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  country?: string;
   coordinates: LatLng;
   rating: number;
   reviewsCount: number;
@@ -66,4 +74,21 @@ export interface TripState {
   isOptimized: boolean;
   isSaving: boolean;
   lastSavedAt: string | null;
+}
+
+export interface StateGroupedDestinations<T = SelectedStop> {
+  state: string;
+  stateCode?: string;
+  destinations: T[];
+}
+
+export interface SharedTripData {
+  shareId?: string;
+  title: string;
+  ownerName?: string;
+  selectedState: string;
+  stops: SelectedStop[];
+  travelMode: TravelMode;
+  totalDestinations: number;
+  createdAt?: string;
 }

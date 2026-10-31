@@ -7,7 +7,8 @@ import {
   Star, 
   Car,
   Train,
-  Footprints
+  Footprints,
+  MapPin
 } from 'lucide-react';
 import type { SelectedStop, TravelMode } from '../../types';
 
@@ -106,7 +107,23 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
               </button>
             </div>
 
-            <p className="text-[11px] text-slate-400 truncate mt-0.5" title={stop.address}>
+            {/* Geographical State & City Tags */}
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              {stop.state && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                  <MapPin className="w-2.5 h-2.5 text-indigo-400" />
+                  {stop.state}
+                  {stop.stateCode && <span className="opacity-70">({stop.stateCode})</span>}
+                </span>
+              )}
+              {stop.city && stop.city !== stop.name && (
+                <span className="text-[10px] text-slate-300 font-medium bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700/70">
+                  {stop.city}
+                </span>
+              )}
+            </div>
+
+            <p className="text-[11px] text-slate-400 truncate mt-1" title={stop.address}>
               {stop.shortAddress || stop.address}
             </p>
 

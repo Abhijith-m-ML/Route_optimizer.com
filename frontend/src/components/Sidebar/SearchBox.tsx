@@ -7,11 +7,13 @@ import {
   X, 
   AlertCircle, 
   ExternalLink,
-  LocateFixed
+  LocateFixed,
+  Sparkles
 } from 'lucide-react';
 import { 
   searchPlaces, 
   fetchPlaceDetails, 
+  reverseGeocodeCoords,
   type PlacesSearchError
 } from '../../services/placesService';
 import type { Destination, PlaceSuggestion } from '../../types';
@@ -20,12 +22,14 @@ interface SearchBoxProps {
   onAddStop: (destination: Destination) => void;
   selectedIds: string[];
   selectedPlaceIds?: string[];
+  selectedState?: string;
 }
 
 export const SearchBox: React.FC<SearchBoxProps> = ({
   onAddStop,
   selectedIds,
   selectedPlaceIds = [],
+  selectedState = 'All States',
 }) => {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -52,7 +56,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Debounced search logic
+  // Debounced search logic with selectedState biasing
   useEffect(() => {
     const trimmed = query.trim();
 
@@ -74,7 +78,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        const results = await searchPlaces(trimmed);
+        const results = await searchPlaces(trimmed, selectedState);
         setSuggestions(results);
         setHasSearched(true);
         setIsApiNotEnabled(false);
@@ -100,7 +104,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [query]);
+  }, [query, selectedState]);
 
   // Handle adding user's current GPS location
   const handleUseCurrentLocation = async (e?: React.MouseEvent) => {
@@ -121,25 +125,27 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         let placeName = 'My Current Location';
         let formattedAddress = `Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
         let shortAddr = 'Current Location';
+        let geoCity: string | undefined;
+        let geoState: string | undefined;
+        let geoStateCode: string | undefined;
+        let geoCountry: string = 'India';
 
         try {
-          if (window.google?.maps?.Geocoder) {
-            const geocoder = new window.google.maps.Geocoder();
-            const res = await geocoder.geocode({ location: { lat: latitude, lng: longitude } });
-            if (res.results && res.results[0]) {
-              formattedAddress = res.results[0].formatted_address;
-              const localityComp = res.results[0].address_components?.find((c) =>
-                c.types.includes('sublocality') ||
-                c.types.includes('locality') ||
-                c.types.includes('neighborhood')
-              );
-              if (localityComp?.long_name) {
-                placeName = `Current Location (${localityComp.long_name})`;
-                shortAddr = localityComp.long_name;
-              } else {
-                shortAddr = formattedAddress.split(',')[0] || 'Current Location';
-              }
-            }
+          const rev = await reverseGeocodeCoords(latitude, longitude);
+          if (rev.address) {
+            formattedAddress = rev.address;
+          }
+          geoCity = rev.city;
+          geoState = rev.state;
+          geoStateCode = rev.stateCode;
+          geoCountry = rev.country || 'India';
+
+          if (geoCity) {
+            placeName = `Current Location (${geoCity})`;
+            shortAddr = geoState ? `${geoCity}, ${geoState}` : geoCity;
+          } else if (geoState) {
+            placeName = `Current Location (${geoState})`;
+            shortAddr = geoState;
           }
         } catch (geoErr) {
           console.warn('[RouteWise] Reverse geocoding failed:', geoErr);
@@ -150,6 +156,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           name: placeName,
           address: formattedAddress,
           shortAddress: shortAddr,
+          city: geoCity,
+          state: geoState,
+          stateCode: geoStateCode,
+          country: geoCountry,
           description: 'Added via device GPS current location',
           coordinates: { lat: latitude, lng: longitude },
           category: 'modern',
@@ -211,8 +221,12 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         name: suggestion.primaryText,
         address: suggestion.fullText,
         shortAddress: suggestion.secondaryText || suggestion.fullText,
+        city: suggestion.city,
+        state: suggestion.state,
+        stateCode: suggestion.stateCode,
+        country: 'India',
         description: suggestion.fullText,
-        coordinates: { lat: 19.0760, lng: 72.8777 },
+        coordinates: { lat: 20.5937, lng: 78.9629 },
         category: 'heritage',
         rating: 4.5,
         reviewsCount: 150,
@@ -354,7 +368,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           {isLoading && (
             <div className="flex items-center justify-center gap-2.5 py-5 px-4 text-xs text-slate-400">
               <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-              <span>Searching places...</span>
+              <span>
+                Searching places
+                {selectedState && selectedState !== 'All States' ? ` (prioritizing ${selectedState})` : ''}...
+              </span>
             </div>
           )}
 
@@ -387,8 +404,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
             <div className="py-5 px-4 text-center">
               <MapPin className="w-5 h-5 text-slate-600 mx-auto mb-1.5" />
               <p className="text-xs font-semibold text-slate-300">No matching places found</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Try searching with a landmark, street address, or city name.
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {selectedState && selectedState !== 'All States'
+                  ? `Try broadening your search or resetting to All States.`
+                  : 'Try searching with a landmark, street address, or city name.'}
               </p>
             </div>
           )}
@@ -396,8 +415,14 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           {/* 4. Suggestions List */}
           {suggestions.length > 0 && (
             <div className="py-1 divide-y divide-slate-800/60">
-              <div className="px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-900/60">
-                Search Results ({suggestions.length})
+              <div className="px-3.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-900/60 flex items-center justify-between">
+                <span>Search Results ({suggestions.length})</span>
+                {selectedState && selectedState !== 'All States' && (
+                  <span className="text-indigo-400 font-semibold normal-case text-[10px] flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    Prioritizing {selectedState}
+                  </span>
+                )}
               </div>
               {suggestions.map((suggestion) => {
                 const isAlreadyAdded =
@@ -411,6 +436,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
                     className={`flex items-center justify-between gap-3 px-3.5 py-2.5 transition text-left ${
                       isAlreadyAdded
                         ? 'bg-slate-900/40 opacity-70'
+                        : suggestion.isPrioritized
+                        ? 'bg-indigo-950/20 hover:bg-indigo-950/40 cursor-pointer border-l-2 border-indigo-500'
                         : 'hover:bg-slate-800/80 cursor-pointer'
                     }`}
                     onClick={() => {
@@ -420,14 +447,37 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
                     }}
                   >
                     <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                      <div className="w-6 h-6 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <div
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                          suggestion.isPrioritized
+                            ? 'bg-indigo-500/20 text-indigo-400'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
                         <MapPin className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <h5 className="text-xs font-bold text-white truncate">
-                          {suggestion.primaryText}
-                        </h5>
-                        <p className="text-[11px] text-slate-400 truncate">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h5 className="text-xs font-bold text-white truncate">
+                            {suggestion.primaryText}
+                          </h5>
+                          {suggestion.isPrioritized && (
+                            <span className="bg-indigo-500/20 text-indigo-300 text-[9px] font-bold px-1.5 py-0.2 rounded border border-indigo-500/30">
+                              Priority
+                            </span>
+                          )}
+                          {suggestion.state && (
+                            <span className="bg-slate-800 text-slate-300 text-[9px] font-semibold px-1.5 py-0.2 rounded border border-slate-700">
+                              {suggestion.state}
+                            </span>
+                          )}
+                          {suggestion.city && suggestion.city !== suggestion.primaryText && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              • {suggestion.city}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
                           {suggestion.secondaryText || suggestion.fullText}
                         </p>
                       </div>
@@ -452,7 +502,11 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
                             e.stopPropagation();
                             handleSelectSuggestion(suggestion);
                           }}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-500 px-2.5 py-1 rounded-lg shadow transition"
+                          className={`flex items-center gap-1 text-[11px] font-semibold text-white px-2.5 py-1 rounded-lg shadow transition ${
+                            suggestion.isPrioritized
+                              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500'
+                              : 'bg-indigo-600 hover:bg-indigo-500'
+                          }`}
                         >
                           <Plus className="w-3 h-3" />
                           <span>Add</span>

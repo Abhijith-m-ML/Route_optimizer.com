@@ -1,4 +1,4 @@
-import type { SelectedStop, TravelMode } from '../types';
+import type { SelectedStop, TravelMode, SharedTripData } from '../types';
 import { db } from '../config/firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
@@ -167,7 +167,7 @@ export async function saveTripToStorage(
 ): Promise<SavedTrip> {
   const trip: SavedTrip = {
     id: 'trip_' + (userId ? `${userId.toLowerCase()}_` : '') + Date.now(),
-    title: tripData.title || 'Mumbai Highlights Explorer',
+    title: tripData.title || 'Highlights Explorer',
     travelMode: tripData.travelMode,
     stops: tripData.stops,
     lastSavedAt: tripData.lastSavedAt,
@@ -244,13 +244,20 @@ export async function clearSavedTrip(userId?: string | null): Promise<void> {
 }
 
 /**
- * Encodes trip data into a lightweight shareable URL that can be opened on any phone or browser
+ * Encodes trip data into a lightweight shareable URL that can be opened on any phone or browser.
+ * Preserves selectedState and destination geographical metadata (state, city, stateCode).
  */
-export function encodeTripToUrl(title: string, travelMode: TravelMode, stops: SelectedStop[]): string {
+export function encodeTripToUrl(
+  title: string,
+  travelMode: TravelMode,
+  stops: SelectedStop[],
+  selectedState: string = 'All States'
+): string {
   try {
     const compact = {
       t: title,
       m: travelMode,
+      st: selectedState,
       s: stops.map((s) => ({
         id: s.id,
         n: s.name,
@@ -260,6 +267,10 @@ export function encodeTripToUrl(title: string, travelMode: TravelMode, stops: Se
         d: s.customDurationMinutes || s.typicalVisitDurationMinutes,
         p: s.photoUrl,
         pid: s.placeId,
+        city: s.city,
+        state: s.state,
+        sc: s.stateCode,
+        country: s.country,
       })),
     };
     const jsonStr = JSON.stringify(compact);
@@ -278,7 +289,7 @@ export function encodeTripToUrl(title: string, travelMode: TravelMode, stops: Se
  */
 export function decodeTripFromUrl(
   encoded: string
-): { title: string; travelMode: TravelMode; stops: SelectedStop[] } | null {
+): { title: string; travelMode: TravelMode; selectedState: string; stops: SelectedStop[] } | null {
   try {
     const jsonStr = decodeURIComponent(atob(encoded));
     const parsed = JSON.parse(jsonStr);
@@ -286,16 +297,21 @@ export function decodeTripFromUrl(
 
     const stops: SelectedStop[] = parsed.s.map((item: any, idx: number) => ({
       id: item.id || `stop_${idx}_${Date.now()}`,
+      placeId: item.pid,
       name: item.n || 'Destination',
       address: item.a || '',
-      coordinates: item.c || { lat: 19.076, lng: 72.8777 },
-      category: item.cat || 'sightseeing',
+      shortAddress: item.city && item.state ? `${item.city}, ${item.state}` : (item.a || item.n),
+      city: item.city,
+      state: item.state,
+      stateCode: item.sc,
+      country: item.country || 'India',
+      coordinates: item.c || { lat: 20.5937, lng: 78.9629 },
+      category: item.cat || 'heritage',
       typicalVisitDurationMinutes: item.d || 60,
       customDurationMinutes: item.d || 60,
       stopOrder: idx + 1,
-      photoUrl: item.p,
-      placeId: item.pid,
-      description: item.n,
+      photoUrl: item.p || 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80',
+      description: item.a || item.n,
       rating: 4.8,
       reviewsCount: 100,
     }));
@@ -303,10 +319,111 @@ export function decodeTripFromUrl(
     return {
       title: parsed.t || 'Shared RouteWise Trip',
       travelMode: parsed.m || 'DRIVING',
+      selectedState: parsed.st || 'All States',
       stops,
     };
   } catch (err) {
     console.error('[RouteWise] Failed to decode trip from URL:', err);
     return null;
   }
+}
+
+/**
+ * Creates a state-filtered shareable trip record via the backend API with fallback base64 URL.
+ * Strictly filters stops by the selected state before transmission.
+ */
+export async function createSharedTrip(params: {
+  title: string;
+  travelMode: TravelMode;
+  stops: SelectedStop[];
+  selectedState: string;
+  ownerName?: string;
+  userId?: string;
+}): Promise<{ shareUrl: string; shareId?: string; selectedState: string; totalDestinations: number }> {
+  const { title, travelMode, stops, selectedState, ownerName, userId } = params;
+
+  // Filter stops by selected state
+  let filteredStops = stops;
+  if (selectedState && selectedState !== 'All States' && selectedState !== 'ALL') {
+    const targetState = selectedState.toLowerCase();
+    filteredStops = stops.filter((s) => {
+      const itemState = (s.state || '').trim().toLowerCase();
+      return itemState === targetState || itemState.includes(targetState) || targetState.includes(itemState);
+    });
+  }
+
+  if (filteredStops.length === 0) {
+    throw new Error(`No saved destinations found in state "${selectedState}" to share.`);
+  }
+
+  // Encode fallback base64 payload
+  const fallbackUrl = encodeTripToUrl(title, travelMode, filteredStops, selectedState);
+  const fallbackB64Match = fallbackUrl.match(/trip=([^&]+)/);
+  const fallbackB64 = fallbackB64Match ? fallbackB64Match[1] : '';
+
+  // Try creating record on backend
+  let generatedShareId: string | undefined;
+
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const res = await fetch(`${backendUrl}/api/trips/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          travelMode,
+          stops: filteredStops,
+          selectedState,
+          ownerName: ownerName || 'A Fellow Traveler',
+          userId,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.shareId) {
+          generatedShareId = json.shareId;
+          break;
+        }
+      }
+    } catch {
+      // Try next candidate URL
+    }
+  }
+
+  const origin = window.location.origin;
+  const pathname = window.location.pathname;
+
+  let finalShareUrl: string;
+  if (generatedShareId) {
+    // Include both shareId and fallback trip b64 for resilience
+    finalShareUrl = `${origin}${pathname}#/dashboard?share=${generatedShareId}&trip=${fallbackB64}`;
+  } else {
+    finalShareUrl = `${origin}${pathname}#/dashboard?trip=${fallbackB64}`;
+  }
+
+  return {
+    shareUrl: finalShareUrl,
+    shareId: generatedShareId,
+    selectedState,
+    totalDestinations: filteredStops.length,
+  };
+}
+
+/**
+ * Fetches shared trip preview record by shareId from backend API
+ */
+export async function fetchSharedTrip(shareId: string): Promise<SharedTripData | null> {
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const res = await fetch(`${backendUrl}/api/trips/share/${shareId}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.share) {
+          return json.share as SharedTripData;
+        }
+      }
+    } catch {}
+  }
+  return null;
 }

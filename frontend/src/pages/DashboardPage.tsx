@@ -5,15 +5,17 @@ import { Sidebar } from '../components/Sidebar/Sidebar';
 import { InteractiveMap } from '../components/Map/InteractiveMap';
 import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
-import type { Destination, SelectedStop, TravelMode } from '../types';
+import type { Destination, SelectedStop, TravelMode, SharedTripData } from '../types';
 import { calculateRouteMetrics, optimizeRouteStops } from '../utils/routeOptimizer';
 import { 
   getSavedTrip, 
   saveTripToStorage, 
   clearSavedTrip,
   getSavedTripFromCloud,
-  decodeTripFromUrl
+  decodeTripFromUrl,
+  fetchSharedTrip
 } from '../services/tripService';
+import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -23,7 +25,7 @@ export const DashboardPage: React.FC = () => {
   // Load previously saved trip from localStorage
   const savedTrip = useMemo(() => getSavedTrip(userId), [userId]);
 
-  const [tripTitle, setTripTitle] = useState(() => savedTrip?.title || 'Mumbai Highlights Explorer');
+  const [tripTitle, setTripTitle] = useState(() => savedTrip?.title || 'India Highlights Explorer');
   const [travelMode, setTravelMode] = useState<TravelMode>(() => savedTrip?.travelMode || 'DRIVING');
   const [stops, setStops] = useState<SelectedStop[]>(() => savedTrip?.stops || []);
   const [activeStopId, setActiveStopId] = useState<string | null>(() => savedTrip?.stops[0]?.id || null);
@@ -32,43 +34,59 @@ export const DashboardPage: React.FC = () => {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => savedTrip?.lastSavedAt || null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
+  // Active state filter for search & organization
+  const [selectedState, setSelectedState] = useState<string>('All States');
+
+  // Shared trip preview modal state
+  const [sharedTripPreview, setSharedTripPreview] = useState<SharedTripData | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // Sync if saved trip is updated, shared via URL, or loaded from cloud
   useEffect(() => {
-    // 1. Check for shared trip link in URL (e.g., sent from computer to phone)
+    // 1. Check for shared trip link in URL (supports ?share=... or ?trip=...)
     const hash = window.location.hash || '';
     const queryPart = hash.includes('?') ? hash.split('?')[1] : window.location.search.replace(/^\?/, '');
     const searchParams = new URLSearchParams(queryPart);
+    const shareId = searchParams.get('share');
     const tripParam = searchParams.get('trip');
 
-    if (tripParam) {
-      const imported = decodeTripFromUrl(tripParam);
-      if (imported && imported.stops.length > 0) {
-        setStops(imported.stops);
-        setTripTitle(imported.title);
-        setTravelMode(imported.travelMode);
-        if (imported.stops[0]) {
-          setActiveStopId(imported.stops[0].id);
-        }
-        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        saveTripToStorage(
-          {
-            title: imported.title,
-            travelMode: imported.travelMode,
-            stops: imported.stops,
-            lastSavedAt: timeStr,
-          },
-          userId
-        );
-        setLastSavedAt(timeStr);
-        setToast({
-          id: Date.now().toString(),
-          type: 'success',
-          title: 'Shared Trip Imported',
-          description: `Loaded "${imported.title}" with ${imported.stops.length} stop${imported.stops.length === 1 ? '' : 's'} on this device!`,
+    if (shareId || tripParam) {
+      // Priority 1: Fetch authoritative shared trip record from backend by shareId
+      if (shareId) {
+        fetchSharedTrip(shareId).then((sharedRecord) => {
+          if (sharedRecord && sharedRecord.stops && sharedRecord.stops.length > 0) {
+            setSharedTripPreview(sharedRecord);
+            setIsPreviewModalOpen(true);
+            return;
+          }
+          // Fallback to base64 trip decoding if backend record is missing
+          if (tripParam) {
+            const fallbackDecoded = decodeTripFromUrl(tripParam);
+            if (fallbackDecoded && fallbackDecoded.stops.length > 0) {
+              setSharedTripPreview({
+                title: fallbackDecoded.title,
+                travelMode: fallbackDecoded.travelMode,
+                selectedState: fallbackDecoded.selectedState || 'All States',
+                stops: fallbackDecoded.stops,
+                totalDestinations: fallbackDecoded.stops.length,
+              });
+              setIsPreviewModalOpen(true);
+            }
+          }
         });
-        window.history.replaceState(null, '', window.location.pathname + '#/dashboard');
-        return;
+      } else if (tripParam) {
+        // Direct base64 fallback
+        const decoded = decodeTripFromUrl(tripParam);
+        if (decoded && decoded.stops.length > 0) {
+          setSharedTripPreview({
+            title: decoded.title,
+            travelMode: decoded.travelMode,
+            selectedState: decoded.selectedState || 'All States',
+            stops: decoded.stops,
+            totalDestinations: decoded.stops.length,
+          });
+          setIsPreviewModalOpen(true);
+        }
       }
     }
 
@@ -88,7 +106,6 @@ export const DashboardPage: React.FC = () => {
     getSavedTripFromCloud(userId).then((cloudTrip) => {
       if (cloudTrip && Array.isArray(cloudTrip.stops) && cloudTrip.stops.length > 0) {
         setStops((currentStops) => {
-          // If no stops are currently loaded in this session, restore cloud trip
           if (currentStops.length === 0) {
             setTripTitle(cloudTrip.title);
             setTravelMode(cloudTrip.travelMode);
@@ -123,7 +140,7 @@ export const DashboardPage: React.FC = () => {
     return calculateRouteMetrics(stops, travelMode).metrics;
   }, [stops, travelMode]);
 
-  // Add destination to itinerary (ready for Stage 4 places integration)
+  // Add destination to itinerary
   const handleAddStop = (destination: Destination) => {
     const isDuplicate = stops.some(
       (s) =>
@@ -158,8 +175,59 @@ export const DashboardPage: React.FC = () => {
     showToast({
       type: 'success',
       title: 'Stop Added',
-      description: `Added ${destination.name} to your route.`,
+      description: `Added ${destination.name}${destination.state ? ` (${destination.state})` : ''} to your route.`,
     });
+  };
+
+  /**
+   * Non-destructively imports shared destinations into the recipient's map without overwriting
+   * and deduplicates against places already on the map.
+   */
+  const handleImportSharedDestinations = (importedStops: SelectedStop[]) => {
+    const existingPlaceIds = new Set(stops.map((s) => s.placeId || s.id).filter(Boolean));
+    const existingNames = new Set(stops.map((s) => s.name.toLowerCase()));
+
+    const newlyAdded: SelectedStop[] = [];
+
+    for (const item of importedStops) {
+      const isDuplicate =
+        existingPlaceIds.has(item.placeId || item.id) ||
+        existingNames.has(item.name.toLowerCase());
+
+      if (!isDuplicate) {
+        newlyAdded.push({
+          ...item,
+          stopOrder: stops.length + newlyAdded.length + 1,
+        });
+        if (item.placeId) existingPlaceIds.add(item.placeId);
+        existingNames.add(item.name.toLowerCase());
+      }
+    }
+
+    if (newlyAdded.length === 0) {
+      showToast({
+        type: 'info',
+        title: 'Already on Your Map',
+        description: 'All shared destinations are already included in your itinerary.',
+      });
+    } else {
+      const combined = [...stops, ...newlyAdded];
+      const updated = calculateRouteMetrics(combined, travelMode);
+      setStops(updated.enrichedStops);
+      if (newlyAdded[0]) {
+        setActiveStopId(newlyAdded[0].id);
+      }
+      setIsOptimized(false);
+
+      showToast({
+        type: 'success',
+        title: 'Destinations Imported',
+        description: `Successfully added ${newlyAdded.length} new place${newlyAdded.length === 1 ? '' : 's'} to your map!`,
+      });
+    }
+
+    // Clean up share query params from URL without reload
+    window.history.replaceState(null, '', window.location.pathname + '#/dashboard');
   };
 
   const handleRemoveStop = (id: string) => {
@@ -305,6 +373,7 @@ export const DashboardPage: React.FC = () => {
         stopsCount={stops.length}
         travelMode={travelMode}
         stops={stops}
+        selectedState={selectedState}
       />
 
       {/* Mobile / Tablet Tab Toggle Bar */}
@@ -366,6 +435,8 @@ export const DashboardPage: React.FC = () => {
             onClearAll={handleClearAll}
             onOptimizeRoute={handleOptimizeRoute}
             onReverseRoute={handleReverseRoute}
+            selectedState={selectedState}
+            onSelectState={setSelectedState}
           />
         </div>
 
@@ -384,9 +455,17 @@ export const DashboardPage: React.FC = () => {
         </div>
       </main>
 
+      {/* Shared Destination Preview & Import Modal */}
+      <SharedTripPreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        sharedData={sharedTripPreview}
+        currentStops={stops}
+        onImport={handleImportSharedDestinations}
+      />
+
       {/* Notification Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />
-
     </div>
   );
 };

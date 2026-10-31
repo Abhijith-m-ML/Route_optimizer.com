@@ -305,8 +305,83 @@ async function runTests() {
     assert.strictEqual(upperEmailLogin.data.user.username, caseUserUpper);
     console.log('  -> Pass: Case-insensitive email login verified for RFC compliance');
 
+    // Scenario 19: State-Based Sharing — Filtering to Kerala strictly isolates Kerala places
+    console.log('\nScenario 19: State-Based Sharing — Filtering to Kerala strictly isolates Kerala places');
+    const multiStateStops = [
+      { id: 'stop_1', name: 'Fort Kochi', state: 'Kerala', city: 'Kochi', coordinates: { lat: 9.9658, lng: 76.2421 } },
+      { id: 'stop_2', name: 'Munnar', state: 'Kerala', city: 'Idukki', coordinates: { lat: 10.0889, lng: 77.0595 } },
+      { id: 'stop_3', name: 'Wayanad', state: 'Kerala', city: 'Wayanad', coordinates: { lat: 11.6854, lng: 76.1320 } },
+      { id: 'stop_4', name: 'Bengaluru', state: 'Karnataka', city: 'Bengaluru', coordinates: { lat: 12.9716, lng: 77.5946 } },
+      { id: 'stop_5', name: 'Mysuru', state: 'Karnataka', city: 'Mysuru', coordinates: { lat: 12.2958, lng: 76.6394 } },
+      { id: 'stop_6', name: 'Mumbai', state: 'Maharashtra', city: 'Mumbai', coordinates: { lat: 19.0760, lng: 72.8777 } },
+      { id: 'stop_7', name: 'Pune', state: 'Maharashtra', city: 'Pune', coordinates: { lat: 18.5204, lng: 73.8567 } },
+    ];
+
+    const shareKeralaRes = await postJson('/api/trips/share', {
+      title: 'South India Tour',
+      selectedState: 'Kerala',
+      stops: multiStateStops,
+      travelMode: 'DRIVING',
+      ownerName: 'Ravi Kumar',
+    });
+    assert.strictEqual(shareKeralaRes.status, 201, 'POST /api/trips/share must return HTTP 201');
+    assert.strictEqual(shareKeralaRes.data.success, true);
+    assert.strictEqual(shareKeralaRes.data.selectedState, 'Kerala');
+    assert.strictEqual(shareKeralaRes.data.totalDestinations, 3, 'Must only include the 3 Kerala destinations');
+    assert.ok(shareKeralaRes.data.shareId, 'Must return a unique shareId');
+    const keralaShareId = shareKeralaRes.data.shareId;
+
+    // Verify stops in response
+    const keralaStops = shareKeralaRes.data.stops;
+    assert.strictEqual(keralaStops.length, 3);
+    assert.ok(keralaStops.every((s) => s.state === 'Kerala'), 'All destinations must belong to Kerala');
+    assert.ok(!keralaStops.some((s) => s.name === 'Bengaluru' || s.name === 'Mumbai'), 'Karnataka & Maharashtra must be excluded');
+    console.log('  -> Pass: Kerala share link strictly filtered out Karnataka and Maharashtra destinations');
+
+    // Scenario 20: State-Based Sharing — Public preview retrieval via shareId
+    console.log('Scenario 20: State-Based Sharing — Public preview retrieval via shareId');
+    const getPreviewRes = await getJson(`/api/trips/share/${keralaShareId}`);
+    assert.strictEqual(getPreviewRes.status, 200, 'GET /api/trips/share/:shareId must return HTTP 200');
+    assert.strictEqual(getPreviewRes.data.success, true);
+    assert.strictEqual(getPreviewRes.data.share.selectedState, 'Kerala');
+    assert.strictEqual(getPreviewRes.data.share.totalDestinations, 3);
+    assert.strictEqual(getPreviewRes.data.share.ownerName, 'Ravi Kumar');
+    assert.strictEqual(getPreviewRes.data.share.stops[0].name, 'Fort Kochi');
+    assert.strictEqual(getPreviewRes.data.share.stops[1].name, 'Munnar');
+    assert.strictEqual(getPreviewRes.data.share.stops[2].name, 'Wayanad');
+    assert.strictEqual(getPreviewRes.data.share.passwordHash, undefined, 'Must not expose passwordHash');
+    console.log('  -> Pass: Shared destination preview retrieved cleanly without private credentials');
+
+    // Scenario 21: State-Based Sharing — Sharing "All States" returns all 7 destinations
+    console.log('Scenario 21: State-Based Sharing — Sharing "All States" returns all destinations');
+    const shareAllRes = await postJson('/api/trips/share', {
+      title: 'Grand India Tour',
+      selectedState: 'All States',
+      stops: multiStateStops,
+      travelMode: 'DRIVING',
+    });
+    assert.strictEqual(shareAllRes.status, 201);
+    assert.strictEqual(shareAllRes.data.totalDestinations, 7, 'All States option must share all 7 destinations');
+    console.log('  -> Pass: All States option correctly shared all 7 destinations across all states');
+
+    // Scenario 22: State-Based Sharing — Nonexistent shareId returns HTTP 404
+    console.log('Scenario 22: Nonexistent shareId returns HTTP 404');
+    const notFoundShare = await getJson('/api/trips/share/shr_nonexistent_99999');
+    assert.strictEqual(notFoundShare.status, 404, 'Unknown shareId must return HTTP 404');
+    console.log('  -> Pass: Nonexistent shareId rejected with HTTP 404');
+
+    // Scenario 23: State-Based Sharing — Empty matching state returns HTTP 400
+    console.log('Scenario 23: Sharing with 0 matching destinations for a selected state returns HTTP 400');
+    const emptyStateShare = await postJson('/api/trips/share', {
+      title: 'Goa Trip',
+      selectedState: 'Goa',
+      stops: multiStateStops, // contains Kerala, Karnataka, Maharashtra (NO Goa)
+    });
+    assert.strictEqual(emptyStateShare.status, 400, 'Zero matching places in selected state must return HTTP 400');
+    console.log('  -> Pass: Attempting to share empty state rejected with HTTP 400');
+
     console.log('\n====================================================');
-    console.log('🎉 ALL 18 SCENARIOS VERIFIED AND PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL 23 SCENARIOS VERIFIED AND PASSED SUCCESSFULLY!');
     console.log('====================================================\n');
     process.exit(0);
   } finally {
