@@ -120,3 +120,4 @@ export const WelcomeCard: React.FC<WelcomeCardProps> = ({
     </div>
   );
 };
+

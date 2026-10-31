@@ -4,7 +4,7 @@ import { RouteOptimizer } from './RouteOptimizer';
 import { DestinationList } from './DestinationList';
 import { WelcomeCard } from './WelcomeCard';
 import type { Destination, RouteMetrics, SelectedStop, TravelMode } from '../../types';
-import { Info, Edit3, Check } from 'lucide-react';
+import { Info, Edit3, Check, Share2, Route, Map as MapIcon } from 'lucide-react';
 
 interface SidebarProps {
   tripTitle?: string;
@@ -26,13 +26,15 @@ interface SidebarProps {
   selectedState?: string;
   onSelectState?: (state: string) => void;
   onOpenTutorial?: () => void;
+  onSwitchToMap?: () => void;
+  onOpenShare?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   tripTitle,
   onUpdateTitle,
   stops,
-  metrics: _metrics,
+  metrics,
   travelMode,
   isOptimized,
   activeStopId,
@@ -47,6 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onReverseRoute,
   selectedState = 'All States',
   onOpenTutorial,
+  onSwitchToMap,
+  onOpenShare,
 }) => {
   const selectedIds = stops.map((s) => s.id);
 
@@ -127,6 +131,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
         ) : (
           <>
+            {/* Quick Switch to Map button on mobile */}
+            {onSwitchToMap && (
+              <button
+                type="button"
+                onClick={onSwitchToMap}
+                className="lg:hidden w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600/25 to-purple-600/25 hover:from-indigo-600/35 hover:to-purple-600/35 text-indigo-200 border border-indigo-500/35 text-xs font-bold transition shadow-sm"
+              >
+                <MapIcon className="w-4 h-4 text-cyan-400" />
+                <span>View Route on Interactive Map ({stops.length})</span>
+              </button>
+            )}
+
             {/* Destination Search Bar */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
@@ -140,13 +156,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
               />
             </div>
 
-            {/* Route Optimizer Button */}
-            <RouteOptimizer
-              onOptimize={onOptimizeRoute}
-              onReverseRoute={onReverseRoute}
-              stopsCount={stops.length}
-              isOptimized={isOptimized}
-            />
+            {/* Route Metrics Summary Banner */}
+            {stops.length >= 2 && metrics && (
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-3 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                    <Route className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Route Distance & Time
+                    </span>
+                    <span className="text-xs font-bold text-white">
+                      {stops.length} Stops ({travelMode.toLowerCase()})
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-extrabold text-white block">
+                    {metrics.totalDistanceKm} km
+                  </span>
+                  <span className="text-[11px] font-medium text-indigo-300">
+                    ~{metrics.totalDurationMinutes} mins travel
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Route Optimizer Button & Sharing Actions */}
+            <div className="space-y-2">
+              <RouteOptimizer
+                onOptimize={onOptimizeRoute}
+                onReverseRoute={onReverseRoute}
+                stopsCount={stops.length}
+                isOptimized={isOptimized}
+              />
+
+              {onOpenShare && stops.length > 0 && (
+                <button
+                  type="button"
+                  onClick={onOpenShare}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 active:bg-slate-650 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Share Destinations List</span>
+                </button>
+              )}
+            </div>
 
             {/* Selected Destinations List (Organized by State) */}
             <DestinationList

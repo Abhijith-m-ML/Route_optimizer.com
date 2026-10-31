@@ -59,29 +59,33 @@ assert(
   'Brand logo and name are protected from squishing or truncation'
 );
 
-// 3. Mobile Collapsible Bottom Sheet
-console.log('\nTest 3: Mobile Collapsible Bottom Sheet (MobileBottomSheet.tsx)');
+// 3. Mobile Compact Route Summary Bar (Clean Map Experience)
+console.log('\nTest 3: Mobile Compact Route Summary Bar (MobileBottomSheet.tsx)');
 const sheetCode = fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'MobileBottomSheet.tsx'), 'utf-8');
 
 assert(
-  sheetCode.includes("'collapsed'") && sheetCode.includes("'half'") && sheetCode.includes("'full'"),
-  'MobileBottomSheet supports all 3 required states: collapsed, half, and full'
+  sheetCode.includes('data-testid="compact-route-summary"'),
+  'Mobile route summary provides dedicated compact-route-summary container'
 );
 assert(
-  sheetCode.includes('onTouchStart') && sheetCode.includes('onTouchMove') && sheetCode.includes('onTouchEnd'),
-  'MobileBottomSheet handles touch drag gestures for vertical swipe snapping'
+  sheetCode.includes('isCollapsed') && (sheetCode.includes('ChevronUp') || sheetCode.includes('ChevronDown')),
+  'Mobile summary supports collapsing and expanding to preserve map space'
 );
 assert(
-  sheetCode.includes('pb-safe'),
-  'MobileBottomSheet respects iOS home indicator safe area with pb-safe'
+  sheetCode.includes('totalDistanceKm') && sheetCode.includes('totalDurationMinutes'),
+  'Mobile summary displays total distance and estimated travel duration'
 );
 assert(
-  sheetCode.includes('SearchBox') && sheetCode.includes('RouteOptimizer') && sheetCode.includes('DestinationList'),
-  'MobileBottomSheet integrates search, route optimizer, and destination list'
+  sheetCode.includes('onOptimizeRoute') && sheetCode.includes('Optimize'),
+  'Mobile summary provides direct 1-tap Optimize Route action'
 );
 assert(
-  sheetCode.includes('w-10 h-1.5 rounded-full bg-slate-600'),
-  'MobileBottomSheet includes standard draggable visual handle pill'
+  sheetCode.includes('View Trip Plan') && sheetCode.includes('onOpenTripPlan'),
+  'Mobile summary provides direct navigation to dedicated Trip Plan tab'
+);
+assert(
+  !sheetCode.includes('<SearchBox') && !sheetCode.includes('<DestinationList'),
+  'Interactive Map removes duplicate SearchBox and DestinationList to keep map clean'
 );
 
 // 4. Mobile Destination Marker Popup Card

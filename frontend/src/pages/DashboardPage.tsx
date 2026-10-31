@@ -15,9 +15,9 @@ import {
   fetchSharedTrip
 } from '../services/tripService';
 import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
+import { ShareDialog } from '../components/ShareDialog';
 import { ResetRouteModal } from '../components/ResetRouteModal';
 import { MobileBottomSheet } from '../components/Sidebar/MobileBottomSheet';
-import { WelcomeCard } from '../components/Sidebar/WelcomeCard';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
@@ -51,6 +51,9 @@ export const DashboardPage: React.FC = () => {
   // Reset route confirmation modal state
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Direct sharing modal state for mobile Trip Plan
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   // Intelligent onboarding detection: trigger on first login / visit
   useEffect(() => {
@@ -420,42 +423,51 @@ export const DashboardPage: React.FC = () => {
       />
 
       {/* Mobile / Tablet Tab Toggle Bar */}
-      <div className="lg:hidden flex items-center bg-slate-900/95 border-b border-slate-800 px-3 py-1.5 justify-center gap-2 flex-shrink-0 z-30 shadow-sm">
-        <button
-          onClick={() => {
-            setMobileView('map');
-            setTimeout(() => {
-              window.dispatchEvent(new Event('resize'));
-            }, 50);
-            setTimeout(() => {
-              window.dispatchEvent(new Event('resize'));
-            }, 200);
-          }}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-            mobileView === 'map'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-              : 'text-slate-400 hover:text-white bg-slate-800/60'
-          }`}
-        >
-          <MapIcon className="w-3.5 h-3.5" />
-          <span>Interactive Map</span>
-        </button>
-        <button
-          onClick={() => setMobileView('sidebar')}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-            mobileView === 'sidebar'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-              : 'text-slate-400 hover:text-white bg-slate-800/60'
-          }`}
-        >
-          <ListFilter className="w-3.5 h-3.5" />
-          <span>Trip Plan ({stops.length})</span>
-        </button>
+      <div className="lg:hidden bg-slate-950/95 border-b border-slate-800/90 px-3 py-2 flex-shrink-0 z-40 backdrop-blur-md">
+        <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-900/90 rounded-2xl border border-slate-800/80 shadow-inner">
+          <button
+            type="button"
+            onClick={() => {
+              setMobileView('map');
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+              }, 50);
+              setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+              }, 200);
+            }}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-200 min-h-[40px] select-none ${
+              mobileView === 'map'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-extrabold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+            aria-selected={mobileView === 'map'}
+            role="tab"
+          >
+            <MapIcon className="w-4 h-4" />
+            <span>Interactive Map</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileView('sidebar')}
+            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-200 min-h-[40px] select-none ${
+              mobileView === 'sidebar'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-extrabold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+            aria-selected={mobileView === 'sidebar'}
+            role="tab"
+          >
+            <ListFilter className="w-4 h-4" />
+            <span>Trip Plan ({stops.length})</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Workspace Layout */}
       <main className="flex-1 w-full min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
-        {/* Sidebar Panel */}
+        {/* Sidebar Panel (Trip Plan Dedicated View) */}
         <div
           className={`w-full lg:w-[35%] xl:w-[34%] h-full flex-shrink-0 min-h-0 ${
             mobileView === 'sidebar' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
@@ -481,10 +493,15 @@ export const DashboardPage: React.FC = () => {
             selectedState={selectedState}
             onSelectState={setSelectedState}
             onOpenTutorial={() => setIsOnboardingOpen(true)}
+            onSwitchToMap={() => {
+              setMobileView('map');
+              setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+            }}
+            onOpenShare={() => setIsShareModalOpen(true)}
           />
         </div>
 
-        {/* Real Google Map Panel */}
+        {/* Real Google Map Panel (Interactive Map Clean View) */}
         <div
           className={`w-full lg:w-[65%] xl:w-[66%] h-full flex-1 relative min-h-0 ${
             mobileView === 'map' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
@@ -497,40 +514,14 @@ export const DashboardPage: React.FC = () => {
             onRemoveStop={handleRemoveStop}
           />
 
-          {/* Mobile Welcome Experience when 0 destinations are selected */}
-          {stops.length === 0 && (
-            <div className="lg:hidden absolute inset-x-3 top-3 z-30 max-h-[calc(100dvh-130px)] overflow-y-auto pointer-events-auto">
-              <WelcomeCard
-                onAddStop={handleAddStop}
-                selectedState={selectedState}
-                onOpenTutorial={() => setIsOnboardingOpen(true)}
-              />
-            </div>
-          )}
-
-          {/* Mobile Collapsible Bottom Sheet (Active Route Experience) */}
-          {stops.length > 0 && (
-            <MobileBottomSheet
-              tripTitle={tripTitle}
-              onUpdateTitle={setTripTitle}
-              stops={stops}
-              metrics={metrics}
-              travelMode={travelMode}
-              isOptimized={isOptimized}
-              activeStopId={activeStopId}
-              onAddStop={handleAddStop}
-              onSelectStop={(id) => setActiveStopId(id)}
-              onMoveUp={handleMoveUp}
-              onMoveDown={handleMoveDown}
-              onRemoveStop={handleRemoveStop}
-              onUpdateDuration={handleUpdateDuration}
-              onClearAll={handleClearAll}
-              onOptimizeRoute={handleOptimizeRoute}
-              onReverseRoute={handleReverseRoute}
-              selectedState={selectedState}
-              onSelectState={setSelectedState}
-            />
-          )}
+          {/* Compact Route Summary Bar (at bottom of Map on mobile) */}
+          <MobileBottomSheet
+            stops={stops}
+            metrics={metrics}
+            isOptimized={isOptimized}
+            onOptimizeRoute={handleOptimizeRoute}
+            onOpenTripPlan={() => setMobileView('sidebar')}
+          />
         </div>
       </main>
 
@@ -557,6 +548,16 @@ export const DashboardPage: React.FC = () => {
         onCancel={handleCancelReset}
         onConfirm={handleConfirmReset}
         stopsCount={stops.length}
+      />
+
+      {/* Mobile & Sidebar Share Destinations Dialog */}
+      <ShareDialog
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        stops={stops}
+        tripTitle={tripTitle}
+        travelMode={travelMode}
+        initialState={selectedState}
       />
 
       {/* Notification Toast */}

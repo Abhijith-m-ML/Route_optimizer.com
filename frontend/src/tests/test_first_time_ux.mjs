@@ -107,9 +107,10 @@ assert(
   'On mobile, default InfoWindow is closed to prevent double popups'
 );
 
-// 5. Verify Dashboard State & Mobile Layout (DashboardPage.tsx)
-console.log('\nTest 5: Dashboard Clean Start & Onboarding Persistence (DashboardPage.tsx)');
+// 5. Verify Dashboard State & Mobile Layout (DashboardPage.tsx & Sidebar.tsx)
+console.log('\nTest 5: Dashboard Clean Start & Onboarding Persistence (DashboardPage.tsx & Sidebar.tsx)');
 const dashboardCode = fs.readFileSync(path.join(srcDir, 'pages', 'DashboardPage.tsx'), 'utf-8');
+const sidebarCode = fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'Sidebar.tsx'), 'utf-8');
 
 assert(
   dashboardCode.includes('setActiveStopId(null)'),
@@ -120,12 +121,12 @@ assert(
   'Dashboard persists onboarding completion per-user in localStorage'
 );
 assert(
-  dashboardCode.includes('stops.length === 0 &&') && dashboardCode.includes('<WelcomeCard'),
-  'Mobile view renders WelcomeCard when 0 destinations are selected'
+  sidebarCode.includes('stops.length === 0 ?') && sidebarCode.includes('<WelcomeCard'),
+  'Trip Plan view renders WelcomeCard welcoming first-time users when 0 destinations are selected'
 );
 assert(
-  dashboardCode.includes('stops.length > 0 &&') && dashboardCode.includes('<MobileBottomSheet'),
-  'Mobile bottom sheet activates only when destinations are present'
+  dashboardCode.includes('<MobileBottomSheet') && dashboardCode.includes('onOpenTripPlan'),
+  'Interactive Map renders compact route summary with seamless Trip Plan navigation'
 );
 
 console.log('===========================================================');
@@ -137,3 +138,4 @@ if (failures === 0) {
   console.error(`💥 ${failures} test(s) failed.`);
   process.exit(1);
 }
+
