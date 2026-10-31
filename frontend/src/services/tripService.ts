@@ -1,4 +1,4 @@
-import type { SelectedStop, TravelMode, SharedTripData } from '../types';
+import type { SelectedStop, TravelMode, SharedTripData, TripCollection } from '../types';
 import { db } from '../config/firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
@@ -14,6 +14,8 @@ export interface SavedTrip {
 
 const STORAGE_PREFIX = 'routewise_saved_trip_';
 const GLOBAL_STORAGE_KEY = 'routewise_saved_trip';
+const TRIPS_COLLECTIONS_PREFIX = 'routewise_user_trips_';
+const GLOBAL_TRIPS_COLLECTIONS_KEY = 'routewise_user_trips';
 
 /**
  * Retrieve saved trip from localStorage for the given user, falling back to global trip
@@ -426,4 +428,414 @@ export async function fetchSharedTrip(shareId: string): Promise<SharedTripData |
     } catch {}
   }
   return null;
+}
+
+// =========================================================================
+// Custom Trip Collections & Multi-Trip Management System
+// =========================================================================
+
+/**
+ * Loads trip collections from localStorage with automatic migration of legacy saved trip
+ */
+export function loadLocalTrips(userId?: string | null): TripCollection[] {
+  try {
+    const key = userId ? `${TRIPS_COLLECTIONS_PREFIX}${userId.toLowerCase()}` : GLOBAL_TRIPS_COLLECTIONS_KEY;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+
+    // Auto-migrate from legacy single trip if available
+    const legacy = getSavedTrip(userId);
+    if (legacy && Array.isArray(legacy.stops) && legacy.stops.length > 0) {
+      const migratedTrip: TripCollection = {
+        id: 'trip_' + Date.now(),
+        userId: userId || 'default',
+        name: legacy.title || 'Mumbai Trip',
+        description: 'Auto-migrated from previous route',
+        travelMode: legacy.travelMode || 'DRIVING',
+        stops: legacy.stops,
+        isOptimized: false,
+        createdAt: legacy.lastSavedAt || new Date().toISOString(),
+        updatedAt: legacy.updatedAt || new Date().toISOString(),
+      };
+      const initialList = [migratedTrip];
+      saveLocalTrips(initialList, userId);
+      return initialList;
+    }
+  } catch (err) {
+    console.warn('[RouteWise] Failed to load local trips:', err);
+  }
+  return [];
+}
+
+/**
+ * Saves trip collections to localStorage
+ */
+export function saveLocalTrips(trips: TripCollection[], userId?: string | null): void {
+  try {
+    const key = userId ? `${TRIPS_COLLECTIONS_PREFIX}${userId.toLowerCase()}` : GLOBAL_TRIPS_COLLECTIONS_KEY;
+    localStorage.setItem(key, JSON.stringify(trips));
+    if (userId) {
+      localStorage.setItem(GLOBAL_TRIPS_COLLECTIONS_KEY, JSON.stringify(trips));
+    }
+  } catch (err) {
+    console.warn('[RouteWise] Failed to save local trips:', err);
+  }
+}
+
+/**
+ * Fetches all trips for the authenticated or current user from the backend API,
+ * with seamless fallback to localStorage and auto-migration.
+ */
+export async function fetchUserTrips(userId?: string | null, token?: string | null): Promise<TripCollection[]> {
+  const localList = loadLocalTrips(userId);
+
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const url = `${backendUrl}/api/user-trips${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`;
+      const res = await fetch(url, { headers });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.trips)) {
+          // If server returned trips, persist locally
+          if (json.trips.length > 0) {
+            saveLocalTrips(json.trips, userId);
+            return json.trips;
+          } else if (localList.length > 0) {
+            // Sync local trips up to server
+            for (const t of localList) {
+              await createUserTrip(
+                {
+                  name: t.name,
+                  description: t.description,
+                  travelMode: t.travelMode,
+                  stops: t.stops,
+                  isOptimized: t.isOptimized,
+                },
+                userId,
+                token
+              );
+            }
+            return localList;
+          }
+        }
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  return localList;
+}
+
+/**
+ * Creates a new trip collection with duplicate name validation (case-insensitive)
+ */
+export async function createUserTrip(
+  data: {
+    name: string;
+    description?: string;
+    travelMode?: TravelMode;
+    stops?: SelectedStop[];
+    isOptimized?: boolean;
+  },
+  userId?: string | null,
+  token?: string | null
+): Promise<TripCollection> {
+  const trimmedName = data.name.trim();
+  if (!trimmedName) {
+    throw new Error('Trip name is required.');
+  }
+
+  // Pre-check local trips to prevent duplicate names
+  const localTrips = loadLocalTrips(userId);
+  const existsLocally = localTrips.some(
+    t => t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+  );
+  if (existsLocally) {
+    throw new Error(`You already have a trip named "${trimmedName}". Please choose a different name.`);
+  }
+
+  const newTrip: TripCollection = {
+    id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+    userId: userId || 'default',
+    name: trimmedName,
+    description: data.description?.trim() || '',
+    travelMode: data.travelMode || 'DRIVING',
+    stops: data.stops || [],
+    isOptimized: Boolean(data.isOptimized),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Try backend creation
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${backendUrl}/api/user-trips`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          ...data,
+          userId: userId || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.trip) {
+          const created = json.trip as TripCollection;
+          const updatedList = [created, ...localTrips.filter(t => t.id !== created.id)];
+          saveLocalTrips(updatedList, userId);
+          return created;
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        if (json.error) {
+          throw new Error(json.error);
+        }
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('already have a trip')) {
+        throw err;
+      }
+      // If network error, continue with local creation
+    }
+  }
+
+  // Fallback to local persistence
+  const updatedList = [newTrip, ...localTrips];
+  saveLocalTrips(updatedList, userId);
+  return newTrip;
+}
+
+/**
+ * Updates a trip collection (name, description, stops, travelMode, etc.)
+ */
+export async function updateUserTrip(
+  tripId: string,
+  updates: Partial<TripCollection>,
+  userId?: string | null,
+  token?: string | null
+): Promise<TripCollection> {
+  const localTrips = loadLocalTrips(userId);
+  const targetIndex = localTrips.findIndex(t => t.id === tripId);
+  if (targetIndex === -1 && localTrips.length === 0) {
+    throw new Error('Trip not found.');
+  }
+
+  // If renaming, check case-insensitive uniqueness against other trips
+  if (updates.name) {
+    const trimmed = updates.name.trim();
+    if (!trimmed) throw new Error('Trip name cannot be empty.');
+    const duplicate = localTrips.some(
+      t => t.id !== tripId && t.name.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(`You already have another trip named "${trimmed}". Please choose a different name.`);
+    }
+    updates.name = trimmed;
+  }
+
+  // Try backend update
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${backendUrl}/api/user-trips/${tripId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updates),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.trip) {
+          const updatedTrip = json.trip as TripCollection;
+          const newList = localTrips.map(t => (t.id === tripId ? updatedTrip : t));
+          saveLocalTrips(newList, userId);
+          return updatedTrip;
+        }
+      } else {
+        const json = await res.json().catch(() => ({}));
+        if (json.error) throw new Error(json.error);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('already have')) throw err;
+    }
+  }
+
+  // Local fallback
+  const existing = localTrips[targetIndex] || {
+    id: tripId,
+    userId: userId || 'default',
+    name: 'My Trip',
+    travelMode: 'DRIVING',
+    stops: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updated: TripCollection = {
+    ...existing,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updatedList = targetIndex >= 0
+    ? localTrips.map(t => (t.id === tripId ? updated : t))
+    : [updated, ...localTrips];
+
+  saveLocalTrips(updatedList, userId);
+  return updated;
+}
+
+/**
+ * Deletes a trip collection
+ */
+export async function deleteUserTrip(
+  tripId: string,
+  userId?: string | null,
+  token?: string | null
+): Promise<void> {
+  const localTrips = loadLocalTrips(userId);
+  const updatedList = localTrips.filter(t => t.id !== tripId);
+  saveLocalTrips(updatedList, userId);
+
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      await fetch(`${backendUrl}/api/user-trips/${tripId}`, {
+        method: 'DELETE',
+        headers,
+      });
+    } catch {}
+  }
+}
+
+/**
+ * Creates a shareable link for a user trip or all trips
+ */
+export async function createTripCollectionShare(params: {
+  tripId?: string;
+  isAllTrips?: boolean;
+  tripName?: string;
+  title?: string;
+  ownerName?: string;
+  userId?: string;
+  stops?: SelectedStop[];
+  travelMode?: TravelMode;
+  token?: string | null;
+}): Promise<{ shareUrl: string; shareId?: string; tripName?: string; totalDestinations: number }> {
+  const { tripId, isAllTrips, tripName, title, ownerName, userId, stops, travelMode, token } = params;
+
+  let generatedShareId: string | undefined;
+  let finalTripName = tripName || (isAllTrips ? 'All Trips' : 'Shared Trip');
+  let finalTotal = stops?.length || 0;
+
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${backendUrl}/api/trips/share`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          tripId,
+          isAllTrips,
+          tripName,
+          title,
+          ownerName: ownerName || 'A Fellow Traveler',
+          userId,
+          stops,
+          travelMode: travelMode || 'DRIVING',
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.shareId) {
+          generatedShareId = json.shareId;
+          finalTripName = json.tripName || finalTripName;
+          finalTotal = json.totalDestinations || finalTotal;
+          break;
+        }
+      }
+    } catch {}
+  }
+
+  const origin = window.location.origin;
+  const pathname = window.location.pathname;
+
+  let fallbackB64 = '';
+  if (stops && stops.length > 0) {
+    const fallbackUrl = encodeTripToUrl(title || finalTripName, travelMode || 'DRIVING', stops, 'All States');
+    const match = fallbackUrl.match(/trip=([^&]+)/);
+    if (match) fallbackB64 = match[1];
+  }
+
+  let finalShareUrl: string;
+  if (generatedShareId) {
+    finalShareUrl = `${origin}${pathname}#/dashboard?share=${generatedShareId}${fallbackB64 ? `&trip=${fallbackB64}` : ''}`;
+  } else {
+    finalShareUrl = `${origin}${pathname}#/dashboard?trip=${fallbackB64}`;
+  }
+
+  return {
+    shareUrl: finalShareUrl,
+    shareId: generatedShareId,
+    tripName: finalTripName,
+    totalDestinations: finalTotal,
+  };
+}
+
+/**
+ * Imports a shared trip into the current user's collections
+ */
+export async function importSharedTripToUser(
+  shareId: string,
+  customTripName?: string,
+  userId?: string | null,
+  token?: string | null
+): Promise<{ trip?: TripCollection; importedTrips?: TripCollection[]; message: string }> {
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${backendUrl}/api/trips/import`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          shareId,
+          customTripName,
+          userId,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.trip) {
+          const localTrips = loadLocalTrips(userId);
+          saveLocalTrips([json.trip, ...localTrips.filter(t => t.id !== json.trip.id)], userId);
+          return { trip: json.trip, message: json.message || 'Trip imported successfully!' };
+        } else if (Array.isArray(json.importedTrips)) {
+          const localTrips = loadLocalTrips(userId);
+          const combined = [...json.importedTrips, ...localTrips];
+          saveLocalTrips(combined, userId);
+          return { importedTrips: json.importedTrips, message: json.message || 'Trips imported successfully!' };
+        }
+      }
+    } catch {}
+  }
+
+  throw new Error('Failed to import shared trip. Please check your connection and try again.');
 }

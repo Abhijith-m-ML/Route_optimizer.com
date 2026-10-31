@@ -4,14 +4,14 @@ import {
   Share2, 
   Copy, 
   Check, 
-  MapPin, 
-  Globe, 
+  Folder, 
+  Layers, 
   ChevronDown, 
   Loader2, 
   AlertCircle 
 } from 'lucide-react';
-import type { SelectedStop, TravelMode } from '../types';
-import { createSharedTrip } from '../services/tripService';
+import type { SelectedStop, TravelMode, TripCollection } from '../types';
+import { createTripCollectionShare } from '../services/tripService';
 import { useAuth } from '../context/AuthContext';
 
 interface ShareDialogProps {
@@ -21,6 +21,8 @@ interface ShareDialogProps {
   tripTitle: string;
   travelMode: TravelMode;
   initialState?: string;
+  trips?: TripCollection[];
+  activeTripId?: string | 'ALL';
 }
 
 export const ShareDialog: React.FC<ShareDialogProps> = ({
@@ -29,47 +31,36 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
   stops,
   tripTitle,
   travelMode,
-  initialState = 'All States',
+  trips = [],
+  activeTripId = 'ALL',
 }) => {
   const { user } = useAuth();
-  const [selectedState, setSelectedState] = useState<string>(initialState);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | 'ALL'>(activeTripId);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Group stops by geographical state
-  const stateBreakdown = useMemo(() => {
-    const map: Record<string, SelectedStop[]> = {};
-    for (const stop of stops) {
-      const stateName = stop.state || 'Other Locations';
-      if (!map[stateName]) {
-        map[stateName] = [];
-      }
-      map[stateName].push(stop);
-    }
-    return map;
-  }, [stops]);
+  // Determine current active trip or all trips
+  const currentTrip = selectedTargetId === 'ALL' ? null : trips.find((t) => t.id === selectedTargetId);
 
-  const availableStates = Object.keys(stateBreakdown);
-
-  // Filter stops that will be shared based on currently selected state
+  // Eligible stops for this share
   const eligibleStops = useMemo(() => {
-    if (selectedState === 'All States' || selectedState === 'ALL') {
+    if (selectedTargetId === 'ALL') {
+      if (trips.length > 0) {
+        return trips.flatMap((t) => t.stops || []);
+      }
       return stops;
     }
-    const target = selectedState.toLowerCase();
-    return stops.filter((s) => {
-      const itemState = (s.state || 'Other Locations').toLowerCase();
-      return itemState === target || itemState.includes(target) || target.includes(itemState);
-    });
-  }, [stops, selectedState]);
+    const target = trips.find((t) => t.id === selectedTargetId);
+    return target?.stops || stops;
+  }, [selectedTargetId, trips, stops]);
 
   if (!isOpen) return null;
 
-  const handleStateSelect = (state: string) => {
-    setSelectedState(state);
+  const handleTargetSelect = (targetId: string | 'ALL') => {
+    setSelectedTargetId(targetId);
     setIsDropdownOpen(false);
     setShareUrl(null);
     setCopied(false);
@@ -78,20 +69,24 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
 
   const handleGenerateShare = async () => {
     if (eligibleStops.length === 0) {
-      setErrorMessage(`No saved destinations found in ${selectedState} to share.`);
+      setErrorMessage('No destinations found to share.');
       return;
     }
 
     setIsGenerating(true);
     setErrorMessage(null);
     try {
-      const result = await createSharedTrip({
-        title: tripTitle,
-        travelMode,
-        stops,
-        selectedState,
+      const isAll = selectedTargetId === 'ALL';
+      const result = await createTripCollectionShare({
+        tripId: isAll ? undefined : selectedTargetId,
+        isAllTrips: isAll,
+        tripName: isAll ? 'All Trips' : currentTrip?.name || tripTitle,
+        title: isAll ? 'All My Trips' : `Shared Trip: ${currentTrip?.name || tripTitle}`,
         ownerName: user?.displayName || user?.username || 'Fellow Traveler',
         userId: user?.uid,
+        stops: eligibleStops,
+        travelMode,
+        token: user?.token,
       });
 
       setShareUrl(result.shareUrl);
@@ -116,10 +111,12 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
     }
   };
 
+  const totalAllPlaces = trips.reduce((acc, t) => acc + (t.stops?.length || 0), stops.length);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
       <div 
-        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col max-h-[90dvh] overflow-y-auto my-auto"
+        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col max-h-[90dvh] overflow-y-auto my-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-dialog-title"
@@ -127,33 +124,33 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-2xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
               <Share2 className="w-4 h-4" />
             </div>
             <div>
               <h3 id="share-dialog-title" className="text-base font-bold text-white leading-tight">
-                Share Your Destinations
+                Share Trip Collection
               </h3>
               <p className="text-xs text-slate-400">
-                Select which state&apos;s destinations you want to share.
+                Share a specific trip or your entire collection with others
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title="Close"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
         <div className="py-4 space-y-4 overflow-y-auto flex-1 pr-1">
-          {/* State Dropdown Selector */}
+          {/* Trip Selection Dropdown */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Select State to Share
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Select Trip to Share
             </label>
             <div className="relative">
               <button
@@ -161,16 +158,16 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
                 onClick={() => setIsDropdownOpen((prev) => !prev)}
                 className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-800/90 hover:bg-slate-800 border border-slate-700 rounded-xl text-left transition shadow-sm"
               >
-                <div className="flex items-center gap-2">
-                  {selectedState === 'All States' ? (
-                    <Globe className="w-4 h-4 text-indigo-400" />
+                <div className="flex items-center gap-2 min-w-0">
+                  {selectedTargetId === 'ALL' ? (
+                    <Layers className="w-4 h-4 text-indigo-400 flex-shrink-0" />
                   ) : (
-                    <MapPin className="w-4 h-4 text-cyan-400" />
+                    <Folder className="w-4 h-4 text-purple-400 flex-shrink-0" />
                   )}
-                  <span className="text-sm font-semibold text-white">
-                    {selectedState}
+                  <span className="text-sm font-semibold text-white truncate">
+                    {selectedTargetId === 'ALL' ? 'All Trips' : currentTrip?.name || 'Selected Trip'}
                   </span>
-                  <span className="text-xs text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded-full font-medium">
+                  <span className="text-xs text-slate-400 bg-slate-900/60 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
                     {eligibleStops.length} {eligibleStops.length === 1 ? 'place' : 'places'}
                   </span>
                 </div>
@@ -179,44 +176,44 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
 
               {/* Dropdown Options */}
               {isDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 z-30 max-h-56 overflow-y-auto divide-y divide-slate-800/60">
-                  {/* All States */}
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl py-1 z-30 max-h-56 overflow-y-auto divide-y divide-slate-800/60">
+                  {/* All Trips */}
                   <div
-                    onClick={() => handleStateSelect('All States')}
+                    onClick={() => handleTargetSelect('ALL')}
                     className={`flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold cursor-pointer transition ${
-                      selectedState === 'All States'
+                      selectedTargetId === 'ALL'
                         ? 'bg-indigo-600/20 text-indigo-300 font-bold'
                         : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <Globe className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>All States (All saved destinations)</span>
+                      <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>All Trips (Entire Collection)</span>
                     </div>
                     <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
-                      {stops.length}
+                      {totalAllPlaces}
                     </span>
                   </div>
 
-                  {/* Distinct Saved States */}
-                  {availableStates.map((stateName) => {
-                    const count = stateBreakdown[stateName].length;
-                    const isSelected = selectedState === stateName;
+                  {/* Individual User Trips */}
+                  {trips.map((trip) => {
+                    const count = trip.stops?.length || 0;
+                    const isSelected = selectedTargetId === trip.id;
                     return (
                       <div
-                        key={stateName}
-                        onClick={() => handleStateSelect(stateName)}
+                        key={trip.id}
+                        onClick={() => handleTargetSelect(trip.id)}
                         className={`flex items-center justify-between px-3.5 py-2.5 text-xs cursor-pointer transition ${
                           isSelected
                             ? 'bg-indigo-600/20 text-indigo-300 font-bold'
                             : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>{stateName}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Folder className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                          <span className="truncate">{trip.name}</span>
                         </div>
-                        <span className="text-[10px] font-semibold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-semibold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded flex-shrink-0">
                           {count} {count === 1 ? 'place' : 'places'}
                         </span>
                       </div>
@@ -227,21 +224,21 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
             </div>
           </div>
 
-          {/* Destination Preview List in this State */}
-          <div className="bg-slate-950/60 rounded-xl border border-slate-800/80 p-3">
+          {/* Destination Preview List */}
+          <div className="bg-slate-950/60 rounded-2xl border border-slate-800/80 p-3.5">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-2">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
                 Destinations to be shared ({eligibleStops.length}):
               </span>
               <span className="text-[11px] text-indigo-400 font-bold">
-                {selectedState}
+                {selectedTargetId === 'ALL' ? 'All Trips' : currentTrip?.name}
               </span>
             </div>
 
             {eligibleStops.length === 0 ? (
               <p className="text-xs text-slate-500 py-3 text-center">
-                No destinations saved under this state.
+                No destinations saved in this trip.
               </p>
             ) : (
               <ol className="divide-y divide-slate-800/40 text-xs max-h-40 overflow-y-auto pr-1">
@@ -309,7 +306,7 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
               </div>
 
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Recipients opening this link will see a preview of {selectedState} destinations and can import them directly to their own map without losing their current places.
+                Recipients opening this link will see a preview of {selectedTargetId === 'ALL' ? 'all shared trips' : `"${currentTrip?.name || 'this trip'}"`} and can import it directly to their own trip collections.
               </p>
             </div>
           )}
@@ -339,7 +336,7 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
             ) : (
               <>
                 <Share2 className="w-3.5 h-3.5" />
-                <span>Share Destinations</span>
+                <span>Share Trip</span>
               </>
             )}
           </button>
@@ -348,4 +345,3 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
     </div>
   );
 };
-

@@ -13,6 +13,7 @@ const __dirname = path.dirname(__filename);
 const DATA_FILE = path.join(__dirname, '..', 'trips_data.json');
 const USERS_FILE = path.join(__dirname, '..', 'users_data.json');
 const SHARED_TRIPS_FILE = path.join(__dirname, '..', 'shared_trips.json');
+const TRIPS_COLLECTIONS_FILE = path.join(__dirname, '..', 'trips_collections.json');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'routewise_jwt_secret_mumbai_secure_key_2026';
 
@@ -37,10 +38,33 @@ export interface AuthenticatedRequest extends Request {
   user?: UserRecord;
 }
 
+export interface TripRecord {
+  id: string; // trip_id
+  userId: string; // owner uid
+  name: string; // custom trip name e.g. "Mumbai Trip", "Kerala Vacation"
+  description?: string;
+  travelMode: string;
+  stops: any[];
+  isOptimized?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SharedTripRecord {
   shareId: string;
   title: string;
-  selectedState: string;
+  selectedState?: string;
+  tripId?: string;
+  tripName?: string;
+  isAllTrips?: boolean;
+  trips?: {
+    id: string;
+    name: string;
+    description?: string;
+    stops: any[];
+    travelMode: string;
+    totalDestinations: number;
+  }[];
   stops: any[];
   travelMode: string;
   ownerName?: string;
@@ -195,6 +219,49 @@ function persistSharedTrips(trips: Map<string, SharedTripRecord>) {
 
 export const sharedTripsMap = loadPersistedSharedTrips();
 
+function loadPersistedTripCollections(): Map<string, TripRecord> {
+  try {
+    if (fs.existsSync(TRIPS_COLLECTIONS_FILE)) {
+      const raw = fs.readFileSync(TRIPS_COLLECTIONS_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      return new Map(Object.entries(data));
+    }
+  } catch (err) {
+    console.warn('[RouteWise API] Could not read trips_collections.json:', err);
+  }
+  return new Map();
+}
+
+function persistTripCollections(collections: Map<string, TripRecord>) {
+  try {
+    const obj = Object.fromEntries(collections);
+    fs.writeFileSync(TRIPS_COLLECTIONS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[RouteWise API] Could not write trips_collections.json:', err);
+  }
+}
+
+export const tripCollectionsMap = loadPersistedTripCollections();
+
+/**
+ * Resolves the authenticated user or identifier from request token, body, or query
+ */
+export function resolveRequestUser(req: Request): { uid: string; email?: string; username?: string } | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    const payload = verifyToken(token);
+    if (payload) {
+      return { uid: payload.uid, email: payload.email, username: payload.username };
+    }
+  }
+  const bodyUid = (req as any).user?.uid || (req.body && req.body.userId) || req.query.userId || req.headers['x-user-id'];
+  if (bodyUid && typeof bodyUid === 'string' && bodyUid.trim()) {
+    return { uid: bodyUid.trim() };
+  }
+  return null;
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -266,8 +333,10 @@ app.get('/', (_req: Request, res: Response) => {
       me: 'GET /api/auth/me',
       dashboard: 'GET /api/dashboard/summary',
       trips: '/api/trips',
+      userTrips: '/api/user-trips',
       share: 'POST /api/trips/share',
       getShare: 'GET /api/trips/share/:shareId',
+      importTrip: 'POST /api/trips/import',
     },
     timestamp: new Date().toISOString(),
   });
@@ -509,7 +578,7 @@ app.post('/api/routes/optimize', (req: Request, res: Response) => {
   });
 });
 
-// Save Trip Endpoint
+// Save Trip Endpoint (Legacy compatibility)
 app.post('/api/trips', (req: Request, res: Response) => {
   const tripData = req.body;
   const userKey = (tripData.userId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
@@ -522,7 +591,7 @@ app.post('/api/trips', (req: Request, res: Response) => {
   });
 });
 
-// Retrieve Trip Endpoint (for cross-device synchronization between laptop & phone)
+// Retrieve Trip Endpoint (Legacy compatibility)
 app.get('/api/trips/:userId', (req: Request, res: Response) => {
   const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
   const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
@@ -533,7 +602,7 @@ app.get('/api/trips/:userId', (req: Request, res: Response) => {
   return res.status(404).json({ success: false, message: 'No saved trip found' });
 });
 
-// Delete Trip Endpoint
+// Delete Trip Endpoint (Legacy compatibility)
 app.delete('/api/trips/:userId', (req: Request, res: Response) => {
   const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
   const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
@@ -542,69 +611,326 @@ app.delete('/api/trips/:userId', (req: Request, res: Response) => {
   res.json({ success: true, message: 'Trip deleted successfully' });
 });
 
+// -------------------------------------------------------------
+// Custom Trip Collections & Multi-Trip Management Endpoints
+// -------------------------------------------------------------
+
+// Helper to sanitize destinations for storage and sharing
+function sanitizeStops(stops: any[]): any[] {
+  if (!Array.isArray(stops)) return [];
+  return stops.map((s: any, idx: number) => ({
+    id: s.id || `stop_${idx}_${Date.now()}`,
+    placeId: s.placeId || '',
+    name: s.name || 'Destination',
+    address: s.address || '',
+    shortAddress: s.shortAddress || s.address || '',
+    city: s.city || undefined,
+    state: s.state || undefined,
+    stateCode: s.stateCode || undefined,
+    country: s.country || 'India',
+    coordinates: s.coordinates || { lat: 20.5937, lng: 78.9629 },
+    category: s.category || 'heritage',
+    rating: s.rating || 4.5,
+    reviewsCount: s.reviewsCount || 100,
+    typicalVisitDurationMinutes: s.typicalVisitDurationMinutes || 60,
+    customDurationMinutes: s.customDurationMinutes || s.typicalVisitDurationMinutes || 60,
+    stopOrder: idx + 1,
+    photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80',
+    tags: s.tags || [],
+  }));
+}
+
+// GET /api/user-trips - List all trips for current user with auto-migration from legacy single-trip store
+app.get('/api/user-trips', (req: Request, res: Response) => {
+  try {
+    const user = resolveRequestUser(req);
+    const userId = user?.uid || (req.query.userId as string) || 'default';
+    const userKey = userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+
+    let userTrips = Array.from(tripCollectionsMap.values()).filter(t => t.userId === userId);
+
+    // Auto-migrate legacy saved trip if user has 0 collections yet
+    if (userTrips.length === 0) {
+      const legacy = savedTripsMap.get(userKey);
+      if (legacy && Array.isArray(legacy.stops) && legacy.stops.length > 0) {
+        const migratedTrip: TripRecord = {
+          id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+          userId,
+          name: legacy.title || 'Mumbai Highlights Explorer',
+          description: 'Migrated from previous active route',
+          travelMode: legacy.travelMode || 'DRIVING',
+          stops: sanitizeStops(legacy.stops),
+          isOptimized: Boolean(legacy.isOptimized),
+          createdAt: legacy.updatedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        tripCollectionsMap.set(migratedTrip.id, migratedTrip);
+        persistTripCollections(tripCollectionsMap);
+        userTrips.push(migratedTrip);
+      }
+    }
+
+    userTrips.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    return res.json({
+      success: true,
+      trips: userTrips,
+      totalTrips: userTrips.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to fetch user trips' });
+  }
+});
+
+// POST /api/user-trips - Create a new user-defined trip collection
+app.post('/api/user-trips', (req: Request, res: Response) => {
+  try {
+    const user = resolveRequestUser(req);
+    const userId = user?.uid || req.body.userId || 'default';
+    const { name, description, travelMode, stops, isOptimized } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Trip name is required.' });
+    }
+
+    const trimmedName = name.trim();
+
+    // Enforce case-insensitive duplicate check for the same user
+    const duplicate = Array.from(tripCollectionsMap.values()).some(
+      t => t.userId === userId && t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      return res.status(400).json({
+        error: `You already have a trip named "${trimmedName}". Please choose a different trip name.`,
+      });
+    }
+
+    const tripId = 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    const newTrip: TripRecord = {
+      id: tripId,
+      userId,
+      name: trimmedName,
+      description: typeof description === 'string' ? description.trim() : '',
+      travelMode: travelMode || 'DRIVING',
+      stops: sanitizeStops(stops || []),
+      isOptimized: Boolean(isOptimized),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    tripCollectionsMap.set(tripId, newTrip);
+    persistTripCollections(tripCollectionsMap);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Trip created successfully',
+      trip: newTrip,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to create trip' });
+  }
+});
+
+// GET /api/user-trips/:tripId - Get single trip details
+app.get('/api/user-trips/:tripId', (req: Request, res: Response) => {
+  const rawId = req.params.tripId;
+  const tripId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const trip = tripCollectionsMap.get(tripId);
+
+  if (!trip) {
+    return res.status(404).json({ success: false, error: 'Trip not found.' });
+  }
+
+  return res.json({ success: true, trip });
+});
+
+// PUT /api/user-trips/:tripId - Edit / update trip (name, description, stops, travelMode, etc.)
+app.put('/api/user-trips/:tripId', (req: Request, res: Response) => {
+  try {
+    const rawId = req.params.tripId;
+    const tripId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const trip = tripCollectionsMap.get(tripId);
+
+    if (!trip) {
+      return res.status(404).json({ success: false, error: 'Trip not found.' });
+    }
+
+    const { name, description, travelMode, stops, isOptimized } = req.body;
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'Trip name cannot be empty.' });
+      }
+      const trimmedName = name.trim();
+      const duplicate = Array.from(tripCollectionsMap.values()).some(
+        t => t.userId === trip.userId && t.id !== trip.id && t.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (duplicate) {
+        return res.status(400).json({
+          error: `You already have another trip named "${trimmedName}". Please choose a different trip name.`,
+        });
+      }
+      trip.name = trimmedName;
+    }
+
+    if (description !== undefined) {
+      trip.description = typeof description === 'string' ? description.trim() : '';
+    }
+    if (travelMode !== undefined) {
+      trip.travelMode = travelMode;
+    }
+    if (Array.isArray(stops)) {
+      trip.stops = sanitizeStops(stops);
+    }
+    if (isOptimized !== undefined) {
+      trip.isOptimized = Boolean(isOptimized);
+    }
+
+    trip.updatedAt = new Date().toISOString();
+    tripCollectionsMap.set(trip.id, trip);
+    persistTripCollections(tripCollectionsMap);
+
+    return res.json({
+      success: true,
+      message: 'Trip updated successfully',
+      trip,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to update trip' });
+  }
+});
+
+// DELETE /api/user-trips/:tripId - Delete a trip from collections
+app.delete('/api/user-trips/:tripId', (req: Request, res: Response) => {
+  try {
+    const rawId = req.params.tripId;
+    const tripId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const trip = tripCollectionsMap.get(tripId);
+
+    if (!trip) {
+      return res.status(404).json({ success: false, error: 'Trip not found.' });
+    }
+
+    tripCollectionsMap.delete(tripId);
+    persistTripCollections(tripCollectionsMap);
+
+    return res.json({
+      success: true,
+      message: 'Trip deleted successfully',
+      tripId,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to delete trip' });
+  }
+});
+
 /**
- * State-Based Sharing Endpoints:
- * - POST /api/trips/share: Create a shareable itinerary filtered strictly to selectedState.
+ * Trip-Based & Destination Sharing Endpoints:
+ * - POST /api/trips/share: Create a shareable itinerary for a specific trip, all trips, or filtered destinations.
  * - GET  /api/trips/share/:shareId: Publicly view destination list preview without exposing credentials.
+ * - POST /api/trips/import: Import a shared trip into the recipient user's trip collections.
  */
 app.post('/api/trips/share', (req: Request, res: Response) => {
   try {
-    const { title, selectedState, stops, travelMode, ownerName, userId } = req.body;
+    const {
+      title,
+      selectedState,
+      tripId,
+      tripName,
+      isAllTrips,
+      stops: incomingStops,
+      travelMode,
+      ownerName,
+      userId,
+    } = req.body;
 
-    if (!Array.isArray(stops) || stops.length === 0) {
-      return res.status(400).json({ error: 'No destinations provided to share.' });
+    let finalStops: any[] = [];
+    let finalTripName = tripName || '';
+    let finalTitle = title || '';
+    let tripsBundle: SharedTripRecord['trips'] = undefined;
+
+    // 1. Sharing all trips for user
+    if (isAllTrips) {
+      const user = resolveRequestUser(req);
+      const effectiveUserId = user?.uid || userId || 'default';
+      const userTrips = Array.from(tripCollectionsMap.values()).filter(t => t.userId === effectiveUserId);
+
+      if (userTrips.length === 0 && (!incomingStops || incomingStops.length === 0)) {
+        return res.status(400).json({ error: 'No trips available to share.' });
+      }
+
+      tripsBundle = userTrips.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        stops: sanitizeStops(t.stops),
+        travelMode: t.travelMode,
+        totalDestinations: t.stops.length,
+      }));
+
+      // Flatten stops for map display
+      finalStops = userTrips.flatMap(t => sanitizeStops(t.stops));
+      finalTitle = finalTitle || 'All My Trips';
+      finalTripName = 'All Trips';
+    } else if (tripId) {
+      // 2. Sharing a specific user trip
+      const trip = tripCollectionsMap.get(tripId);
+      if (trip) {
+        finalStops = sanitizeStops(trip.stops);
+        finalTripName = trip.name;
+        finalTitle = finalTitle || `Shared Trip: ${trip.name}`;
+      } else if (Array.isArray(incomingStops) && incomingStops.length > 0) {
+        finalStops = sanitizeStops(incomingStops);
+        finalTripName = tripName || 'Custom Trip';
+        finalTitle = finalTitle || `Shared Trip: ${finalTripName}`;
+      } else {
+        return res.status(404).json({ error: 'Trip not found to share.' });
+      }
+    } else {
+      // 3. Fallback / direct destination list sharing
+      if (!Array.isArray(incomingStops) || incomingStops.length === 0) {
+        return res.status(400).json({ error: 'No destinations provided to share.' });
+      }
+
+      let filteredStops = incomingStops;
+      const stateFilter = (selectedState || 'All States').trim();
+      if (stateFilter !== 'All States' && stateFilter !== 'ALL') {
+        const targetState = stateFilter.toLowerCase();
+        filteredStops = incomingStops.filter((s: any) => {
+          const itemState = (s.state || '').trim().toLowerCase();
+          return itemState === targetState || itemState.includes(targetState) || targetState.includes(itemState);
+        });
+      }
+
+      if (filteredStops.length === 0) {
+        return res.status(400).json({
+          error: `No destinations found matching "${stateFilter}".`,
+        });
+      }
+
+      finalStops = sanitizeStops(filteredStops);
+      finalTripName = tripName || 'Shared Destinations';
+      finalTitle = finalTitle || `Shared Trip: ${finalTripName}`;
     }
 
-    const stateFilter = (selectedState || 'All States').trim();
-    let filteredStops = stops;
-
-    // Strict state filtering on backend to prevent data leakage of unselected states
-    if (stateFilter !== 'All States' && stateFilter !== 'ALL') {
-      const targetState = stateFilter.toLowerCase();
-      filteredStops = stops.filter((s: any) => {
-        const itemState = (s.state || '').trim().toLowerCase();
-        return itemState === targetState || itemState.includes(targetState) || targetState.includes(itemState);
-      });
+    if (finalStops.length === 0 && (!tripsBundle || tripsBundle.length === 0)) {
+      return res.status(400).json({ error: 'No destinations found to share.' });
     }
-
-    if (filteredStops.length === 0) {
-      return res.status(400).json({
-        error: `No destinations found matching state "${stateFilter}".`,
-      });
-    }
-
-    // Sanitize destination objects (exclude sensitive internals, ensure state/city metadata preserved)
-    const sanitizedStops = filteredStops.map((s: any, idx: number) => ({
-      id: s.id || `stop_${idx}_${Date.now()}`,
-      placeId: s.placeId || '',
-      name: s.name || 'Destination',
-      address: s.address || '',
-      shortAddress: s.shortAddress || s.address || '',
-      city: s.city || undefined,
-      state: s.state || undefined,
-      stateCode: s.stateCode || undefined,
-      country: s.country || 'India',
-      coordinates: s.coordinates || { lat: 20.5937, lng: 78.9629 },
-      category: s.category || 'heritage',
-      rating: s.rating || 4.5,
-      reviewsCount: s.reviewsCount || 100,
-      typicalVisitDurationMinutes: s.typicalVisitDurationMinutes || 60,
-      customDurationMinutes: s.customDurationMinutes || s.typicalVisitDurationMinutes || 60,
-      stopOrder: idx + 1,
-      photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80',
-      tags: s.tags || [],
-    }));
 
     const shareId = 'shr_' + crypto.randomBytes(6).toString('hex');
     const newRecord: SharedTripRecord = {
       shareId,
-      title: title || 'Shared Destinations',
-      selectedState: stateFilter,
-      stops: sanitizedStops,
+      title: finalTitle,
+      selectedState: selectedState || 'All States',
+      tripId: tripId || undefined,
+      tripName: finalTripName,
+      isAllTrips: Boolean(isAllTrips),
+      trips: tripsBundle,
+      stops: finalStops,
       travelMode: travelMode || 'DRIVING',
       ownerName: ownerName || 'Traveler',
       userId: userId || undefined,
-      totalDestinations: sanitizedStops.length,
+      totalDestinations: finalStops.length,
       createdAt: new Date().toISOString(),
     };
 
@@ -614,9 +940,11 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
     return res.status(201).json({
       success: true,
       shareId,
-      selectedState: stateFilter,
-      totalDestinations: sanitizedStops.length,
-      stops: sanitizedStops,
+      selectedState: newRecord.selectedState,
+      tripName: finalTripName,
+      isAllTrips: Boolean(isAllTrips),
+      totalDestinations: finalStops.length,
+      stops: finalStops,
       createdAt: newRecord.createdAt,
     });
   } catch (err: any) {
@@ -633,12 +961,15 @@ app.get('/api/trips/share/:shareId', (req: Request, res: Response) => {
     return res.status(404).json({ success: false, error: 'Shared destination list not found or expired.' });
   }
 
-  // Return public sanitized preview payload
   return res.json({
     success: true,
     share: {
       shareId: record.shareId,
       title: record.title,
+      tripId: record.tripId,
+      tripName: record.tripName || record.title,
+      isAllTrips: record.isAllTrips || false,
+      trips: record.trips,
       selectedState: record.selectedState,
       stops: record.stops,
       travelMode: record.travelMode,
@@ -647,6 +978,98 @@ app.get('/api/trips/share/:shareId', (req: Request, res: Response) => {
       createdAt: record.createdAt,
     },
   });
+});
+
+// POST /api/trips/import - Import a shared trip into recipient user's trip collections
+app.post('/api/trips/import', (req: Request, res: Response) => {
+  try {
+    const { shareId, customTripName, userId: bodyUserId } = req.body;
+    const user = resolveRequestUser(req);
+    const recipientUserId = user?.uid || bodyUserId || 'default';
+
+    if (!shareId) {
+      return res.status(400).json({ error: 'shareId is required to import a trip.' });
+    }
+
+    const shareRecord = sharedTripsMap.get(shareId);
+    if (!shareRecord) {
+      return res.status(404).json({ error: 'Shared trip not found or expired.' });
+    }
+
+    // Helper to generate unique trip name if duplicate exists for this recipient
+    const getUniqueTripName = (baseName: string): string => {
+      let candidate = baseName.trim() || 'Shared Trip';
+      let count = 2;
+      while (
+        Array.from(tripCollectionsMap.values()).some(
+          t => t.userId === recipientUserId && t.name.trim().toLowerCase() === candidate.toLowerCase()
+        )
+      ) {
+        candidate = `${baseName.trim()} (${count})`;
+        count++;
+      }
+      return candidate;
+    };
+
+    // If bundle of multiple trips was shared
+    if (shareRecord.isAllTrips && Array.isArray(shareRecord.trips) && shareRecord.trips.length > 0) {
+      const importedList: TripRecord[] = [];
+      for (const t of shareRecord.trips) {
+        const uniqueName = getUniqueTripName(t.name);
+        const importedId = 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        const newTrip: TripRecord = {
+          id: importedId,
+          userId: recipientUserId,
+          name: uniqueName,
+          description: t.description || `Imported from shared trip by ${shareRecord.ownerName || 'Traveler'}`,
+          travelMode: t.travelMode || shareRecord.travelMode || 'DRIVING',
+          stops: sanitizeStops(t.stops),
+          isOptimized: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        tripCollectionsMap.set(importedId, newTrip);
+        importedList.push(newTrip);
+      }
+      persistTripCollections(tripCollectionsMap);
+      return res.status(201).json({
+        success: true,
+        message: `Successfully imported ${importedList.length} trips into your collections`,
+        importedTrips: importedList,
+      });
+    }
+
+    // Single trip import
+    const requestedName = (typeof customTripName === 'string' && customTripName.trim())
+      ? customTripName.trim()
+      : (shareRecord.tripName || shareRecord.title || 'Shared Trip');
+
+    const finalName = getUniqueTripName(requestedName);
+    const importedId = 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    const importedTrip: TripRecord = {
+      id: importedId,
+      userId: recipientUserId,
+      name: finalName,
+      description: `Imported from shared trip by ${shareRecord.ownerName || 'Traveler'}`,
+      travelMode: shareRecord.travelMode || 'DRIVING',
+      stops: sanitizeStops(shareRecord.stops),
+      isOptimized: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    tripCollectionsMap.set(importedId, importedTrip);
+    persistTripCollections(tripCollectionsMap);
+
+    return res.status(201).json({
+      success: true,
+      message: `Trip "${finalName}" imported successfully to your collection`,
+      trip: importedTrip,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to import trip' });
+  }
 });
 
 const isDirectExecution = Boolean(

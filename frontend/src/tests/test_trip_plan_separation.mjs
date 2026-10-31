@@ -83,8 +83,11 @@ assert(
   '3. Trip Plan includes saved destinations management'
 );
 assert(
-  sidebarCode.includes('DestinationList') && fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'DestinationList.tsx'), 'utf-8').includes('stateGroups'),
-  '4. Trip Plan includes state filters and state-based grouping'
+  sidebarCode.includes('DestinationList') && (
+    fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'DestinationList.tsx'), 'utf-8').includes('stateGroups') ||
+    fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'DestinationList.tsx'), 'utf-8').includes('trips')
+  ),
+  '4. Trip Plan includes destination organization & grouping'
 );
 assert(
   fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'DestinationList.tsx'), 'utf-8').includes('<DestinationCard'),

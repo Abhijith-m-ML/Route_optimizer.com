@@ -76,6 +76,25 @@ export interface TripState {
   lastSavedAt: string | null;
 }
 
+export interface TripCollection {
+  id: string;
+  userId?: string;
+  name: string;
+  description?: string;
+  travelMode: TravelMode;
+  stops: SelectedStop[];
+  isOptimized?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TripGroupedDestinations<T = SelectedStop> {
+  tripId: string;
+  tripName: string;
+  description?: string;
+  destinations: T[];
+}
+
 export interface StateGroupedDestinations<T = SelectedStop> {
   state: string;
   stateCode?: string;
@@ -86,7 +105,18 @@ export interface SharedTripData {
   shareId?: string;
   title: string;
   ownerName?: string;
-  selectedState: string;
+  selectedState?: string;
+  tripId?: string;
+  tripName?: string;
+  isAllTrips?: boolean;
+  trips?: {
+    id: string;
+    name: string;
+    description?: string;
+    stops: SelectedStop[];
+    travelMode: TravelMode;
+    totalDestinations: number;
+  }[];
   stops: SelectedStop[];
   travelMode: TravelMode;
   totalDestinations: number;

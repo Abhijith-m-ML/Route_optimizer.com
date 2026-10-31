@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ShareDialog } from './ShareDialog';
-import type { SelectedStop, TravelMode } from '../types';
+import { TripSelector } from './Trips/TripSelector';
+import type { SelectedStop, TravelMode, TripCollection } from '../types';
 
 interface NavbarProps {
   tripTitle: string;
@@ -26,6 +27,11 @@ interface NavbarProps {
   stops?: SelectedStop[];
   selectedState?: string;
   onOpenOnboarding?: () => void;
+  trips?: TripCollection[];
+  activeTripId?: string | 'ALL';
+  onSelectTrip?: (tripId: string | 'ALL') => void;
+  onCreateNewTrip?: () => void;
+  onOpenMyTrips?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -40,6 +46,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   stops = [],
   selectedState = 'All States',
   onOpenOnboarding,
+  trips = [],
+  activeTripId = 'ALL',
+  onSelectTrip,
+  onCreateNewTrip,
+  onOpenMyTrips,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(tripTitle);
@@ -100,6 +111,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <div className="h-6 w-px bg-slate-800 hidden md:block" />
 
+          {/* Trip Selector Dropdown (Desktop & Tablet) */}
+          {trips && trips.length > 0 && (
+            <div className="hidden sm:block">
+              <TripSelector
+                trips={trips}
+                activeTripId={activeTripId}
+                onSelectTrip={onSelectTrip || (() => {})}
+                onCreateNewTrip={onCreateNewTrip || (() => {})}
+                onOpenMyTrips={onOpenMyTrips || (() => {})}
+              />
+            </div>
+          )}
+
           {/* Editable Trip Title (Desktop & Tablet) */}
           <div className="min-w-0 max-w-xs sm:max-w-md hidden md:block">
             {isEditingTitle ? (
@@ -155,11 +179,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          {/* Share Destinations Button (Opens State-Based Share Dialog) */}
+          {/* My Trips Management Button */}
+          {onOpenMyTrips && (
+            <button
+              onClick={onOpenMyTrips}
+              className="flex items-center justify-center gap-1.5 h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 active:bg-slate-700 border border-slate-700/70 transition shadow-sm"
+              title="Open My Trips Collections"
+              aria-label="My Trips"
+            >
+              <Compass className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden md:inline">My Trips</span>
+            </button>
+          )}
+
+          {/* Share Destinations Button (Opens Trip Share Dialog) */}
           <button
             onClick={handleOpenShare}
             className="flex items-center justify-center gap-1.5 h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 active:bg-slate-700 border border-slate-700/70 transition shadow-sm"
-            title="Share destinations by state"
+            title="Share destinations & trips"
             aria-label="Share destinations"
           >
             <Share2 className="w-3.5 h-3.5 text-indigo-400" />
@@ -233,6 +270,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div className="py-1">
+                    {onOpenMyTrips && (
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onOpenMyTrips();
+                        }}
+                        className="w-full flex items-center space-x-2.5 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition text-left"
+                      >
+                        <Compass className="w-3.5 h-3.5 text-purple-400" />
+                        <span>My Trips Collections</span>
+                      </button>
+                    )}
+
                     {onOpenOnboarding && (
                       <button
                         onClick={() => {
@@ -269,7 +319,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* State-Based Share Destinations Dialog */}
+      {/* Share Destinations & Trip Dialog */}
       <ShareDialog
         isOpen={isShareDialogOpen}
         onClose={() => setIsShareDialogOpen(false)}
@@ -277,6 +327,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         tripTitle={tripTitle}
         travelMode={travelMode}
         initialState={selectedState}
+        trips={trips}
+        activeTripId={activeTripId}
       />
     </>
   );

@@ -3,7 +3,8 @@ import { SearchBox } from './SearchBox';
 import { RouteOptimizer } from './RouteOptimizer';
 import { DestinationList } from './DestinationList';
 import { WelcomeCard } from './WelcomeCard';
-import type { Destination, RouteMetrics, SelectedStop, TravelMode } from '../../types';
+import { TripSelector } from '../Trips/TripSelector';
+import type { Destination, RouteMetrics, SelectedStop, TravelMode, TripCollection } from '../../types';
 import { Info, Edit3, Check, Route, Map as MapIcon } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,11 @@ interface SidebarProps {
   onOpenTutorial?: () => void;
   onSwitchToMap?: () => void;
   onOpenShare?: () => void;
+  trips?: TripCollection[];
+  activeTripId?: string | 'ALL';
+  onSelectTrip?: (tripId: string | 'ALL') => void;
+  onCreateNewTrip?: () => void;
+  onOpenMyTrips?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -50,6 +56,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedState = 'All States',
   onOpenTutorial,
   onSwitchToMap,
+  trips = [],
+  activeTripId = 'ALL',
+  onSelectTrip,
+  onCreateNewTrip,
+  onOpenMyTrips,
 }) => {
   const selectedIds = stops.map((s) => s.id);
 
@@ -142,6 +153,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             )}
 
+            {/* Trip Selector Header */}
+            {trips.length > 0 && (
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-sm">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex-shrink-0">
+                    Trip:
+                  </span>
+                  <TripSelector
+                    trips={trips}
+                    activeTripId={activeTripId}
+                    onSelectTrip={onSelectTrip || (() => {})}
+                    onCreateNewTrip={onCreateNewTrip || (() => {})}
+                    onOpenMyTrips={onOpenMyTrips || (() => {})}
+                  />
+                </div>
+                {onOpenMyTrips && (
+                  <button
+                    type="button"
+                    onClick={onOpenMyTrips}
+                    className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex-shrink-0 px-2 py-1 rounded-lg hover:bg-slate-800"
+                  >
+                    My Trips
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Destination Search Bar */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
@@ -190,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               isOptimized={isOptimized}
             />
 
-            {/* Selected Destinations List (Organized by State) */}
+            {/* Selected Destinations List (Organized by Custom Trip Collections) */}
             <DestinationList
               stops={stops}
               activeStopId={activeStopId}
@@ -202,6 +240,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClearAll={onClearAll}
               onAddStop={onAddStop}
               travelMode={travelMode}
+              trips={trips}
+              activeTripId={activeTripId}
+              onSelectTrip={onSelectTrip}
+              onOpenMyTrips={onOpenMyTrips}
+              onCreateNewTrip={onCreateNewTrip}
             />
 
             {/* Travel Pro-Tip Callout */}
