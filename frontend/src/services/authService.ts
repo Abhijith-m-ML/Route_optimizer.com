@@ -10,6 +10,7 @@ import {
   browserSessionPersistence,
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
+import { triggerGoogleSignInPopup } from './googleAuth';
 
 import { getBackendUrl, getBackendCandidateUrls } from './tripService';
 export { getBackendUrl, getBackendCandidateUrls };
@@ -408,31 +409,101 @@ export async function verifyBackendSession(token: string): Promise<boolean | nul
 }
 
 /**
- * Sign in or sign up with Google popup.
- * If Firebase is not configured, logs in with a Google demo user profile.
+ * Sign in or register using official Google OAuth 2.0 / OpenID Connect.
+ * Uses Google Identity Services to open Google's secure popup,
+ * verifies the token on the central backend, links or creates the database account,
+ * and issues the application's authenticated session token.
  */
 export async function signInWithGoogle(): Promise<AuthUser> {
-  if (!isFirebaseConfigured || !auth) {
-    // Seamless local fallback
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    const demoUser: AuthUser = {
-      uid: 'google_demo_101',
-      email: 'traveler.mumbai@gmail.com',
-      displayName: 'Mumbai Traveler',
-      photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      isDemo: true,
-    };
-    saveDemoUser(demoUser);
-    return demoUser;
+  // 1. If Firebase is configured with real credentials, allow Firebase Google auth
+  if (isFirebaseConfigured && auth) {
+    try {
+      const credential = await signInWithPopup(auth, googleProvider);
+      const idToken = await credential.user.getIdToken();
+
+      // Forward Google ID token to central backend for verification and account registration
+      const res = await fetchWithBackendCandidates(
+        '/api/auth/google',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken }),
+        },
+        12000
+      );
+
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && data?.user && data?.token) {
+        const authUser: AuthUser = {
+          uid: data.user.uid,
+          email: data.user.email,
+          displayName: data.user.displayName || credential.user.displayName,
+          username: data.user.username,
+          token: data.token,
+          photoURL: data.user.photoURL || credential.user.photoURL,
+          isDemo: false,
+        };
+        saveDemoUser(authUser);
+        return authUser;
+      }
+    } catch (fbErr: any) {
+      if (fbErr?.code === 'auth/popup-closed-by-user') {
+        throw new Error('Google sign-in was canceled before completion.');
+      }
+      if (fbErr?.code === 'auth/popup-blocked') {
+        throw new Error('Google sign-in popup was blocked by your browser. Please allow popups and try again.');
+      }
+      console.warn('[RouteWise Auth] Firebase popup fallback failed, trying direct Google Identity Services:', fbErr);
+    }
   }
 
-  const credential = await signInWithPopup(auth, googleProvider);
-  return {
-    uid: credential.user.uid,
-    email: credential.user.email,
-    displayName: credential.user.displayName,
-    photoURL: credential.user.photoURL,
+  // 2. Direct Official Google Identity Services OAuth 2.0 Flow
+  const googleTokens = await triggerGoogleSignInPopup();
+
+  // Send to backend for official token verification, account registration, and session token issuance
+  let res: Response;
+  try {
+    res = await fetchWithBackendCandidates(
+      '/api/auth/google',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: googleTokens.accessToken,
+          credential: googleTokens.credential,
+          code: googleTokens.code,
+        }),
+      },
+      12000
+    );
+  } catch (netErr: any) {
+    console.error('[RouteWise Auth] Backend Google auth connection failed:', netErr);
+    throw new Error('Unable to connect to the authentication server. Please check your internet connection.');
+  }
+
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const errorMsg = data?.error || `Google authentication failed (Status ${res.status}).`;
+    throw new Error(errorMsg);
+  }
+
+  if (!data?.success || !data?.token || !data?.user) {
+    throw new Error('Google authentication failed. Invalid response from authentication server.');
+  }
+
+  const authUser: AuthUser = {
+    uid: data.user.uid,
+    email: data.user.email,
+    displayName: data.user.displayName || data.user.username,
+    username: data.user.username,
+    token: data.token,
+    photoURL: data.user.photoURL || null,
+    isDemo: false,
   };
+
+  saveDemoUser(authUser);
+  return authUser;
 }
 
 /**

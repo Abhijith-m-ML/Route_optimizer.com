@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 
 dotenv.config();
 
@@ -83,6 +84,13 @@ function pruneOldBackups(prefix: string, maxKeep: number = 30) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'routewise_jwt_secret_mumbai_secure_key_2026';
+export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+
+export const googleOAuthClient = new OAuth2Client(
+  GOOGLE_CLIENT_ID || undefined,
+  GOOGLE_CLIENT_SECRET || undefined
+);
 
 export interface UserRecord {
   uid: string;
@@ -91,6 +99,19 @@ export interface UserRecord {
   displayName: string;
   passwordHash: string;
   createdAt: string;
+  googleId?: string;
+  picture?: string;
+  authProvider?: 'password' | 'google' | 'linked';
+  emailVerified?: boolean;
+  updatedAt?: string;
+}
+
+export interface VerifiedGoogleUser {
+  sub: string;
+  email: string;
+  email_verified: boolean;
+  name?: string;
+  picture?: string;
 }
 
 export interface TokenPayload {
@@ -543,12 +564,14 @@ app.get('/', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'Route Optimizer API',
     project: 'Smart Travel Planner (RouteWise)',
-    version: '1.2.0',
+    version: '1.3.0',
     endpoints: {
       health: '/api/health',
       backup: 'GET /api/admin/backup',
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
+      googleAuth: 'POST /api/auth/google',
+      googleCallback: 'GET /api/auth/google/callback',
       me: 'GET /api/auth/me',
       dashboard: 'GET /api/dashboard/summary',
       trips: '/api/trips',
@@ -557,6 +580,7 @@ app.get('/', (_req: Request, res: Response) => {
       getShare: 'GET /api/trips/share/:shareId',
       importTrip: 'POST /api/trips/import',
     },
+    googleOAuthConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
     timestamp: new Date().toISOString(),
   });
 });
@@ -569,6 +593,11 @@ app.get('/api/health', (_req: Request, res: Response) => {
     usersCount: usersMap.size,
     tripCollectionsCount: tripCollectionsMap.size,
     sharedTripsCount: sharedTripsMap.size,
+    googleOAuth: {
+      enabled: Boolean(process.env.GOOGLE_CLIENT_ID),
+      clientIdConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
+      clientSecretConfigured: Boolean(process.env.GOOGLE_CLIENT_SECRET),
+    },
     persistence: {
       storageEngine: 'Multi-Tier JSON Document Store with Seed Baseline & Rolling Snapshots',
       dataDirectory: DATA_DIR,
@@ -620,7 +649,7 @@ app.get('/api/admin/backup', (req: Request, res: Response) => {
 });
 
 /**
- * Look up a user record by identifier (email, username, or UID).
+ * Look up a user record by identifier (email, username, UID, or Google sub ID).
  * - Email lookup is case-insensitive (e.g. user@domain.com === USER@DOMAIN.COM).
  * - Username and UID lookups are strictly case-sensitive exact identity matches.
  * - Display names are non-unique and are NOT used for credential resolution.
@@ -641,7 +670,11 @@ export function findUserByIdentifier(identifier: string): UserRecord | undefined
     if (u.uid === trimmed) {
       return u;
     }
-    // 3. Case-insensitive email match
+    // 3. Google sub ID match
+    if (u.googleId && u.googleId === trimmed) {
+      return u;
+    }
+    // 4. Case-insensitive email match
     if (normalizedEmail && u.email.toLowerCase() === normalizedEmail) {
       return u;
     }
@@ -649,6 +682,118 @@ export function findUserByIdentifier(identifier: string): UserRecord | undefined
 
   return undefined;
 }
+
+/**
+ * Verifies a Google ID Token (JWT) using Google's official OAuth2Client.
+ * Validates cryptographic signature against Google's public certs,
+ * issuer (accounts.google.com), audience (GOOGLE_CLIENT_ID), and expiration.
+ */
+export async function verifyGoogleToken(idToken: string): Promise<VerifiedGoogleUser> {
+  const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+  if (!configuredClientId) {
+    throw new Error('Google OAuth is not configured on the backend. Please set GOOGLE_CLIENT_ID in server environment variables.');
+  }
+
+  const ticket = await googleOAuthClient.verifyIdToken({
+    idToken,
+    audience: configuredClientId,
+  });
+
+  const payload = ticket.getPayload();
+  if (!payload) {
+    throw new Error('Google authentication failed: empty token payload.');
+  }
+
+  if (!payload.sub) {
+    throw new Error('Google authentication failed: missing user identifier (sub).');
+  }
+
+  if (!payload.email) {
+    throw new Error('Google authentication failed: missing email address.');
+  }
+
+  return {
+    sub: payload.sub,
+    email: payload.email,
+    email_verified: Boolean(payload.email_verified),
+    name: payload.name,
+    picture: payload.picture,
+  };
+}
+
+/**
+ * Exchanges a Google OAuth 2.0 authorization code for tokens and verifies the ID token.
+ */
+export async function verifyGoogleAuthCode(code: string, redirectUri: string = 'postmessage'): Promise<VerifiedGoogleUser> {
+  const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+  const configuredClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!configuredClientId || !configuredClientSecret) {
+    throw new Error('Google OAuth code exchange requires both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server environment variables.');
+  }
+
+  const { tokens } = await googleOAuthClient.getToken({
+    code,
+    redirect_uri: redirectUri,
+  });
+
+  if (!tokens.id_token) {
+    throw new Error('Google authorization code exchange did not return an ID token.');
+  }
+
+  return verifyGoogleToken(tokens.id_token);
+}
+
+/**
+ * Verifies a Google access token by querying Google's userinfo endpoint.
+ */
+export async function verifyGoogleAccessToken(accessToken: string): Promise<VerifiedGoogleUser> {
+  const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+
+  // 1. Verify token with Google's tokeninfo endpoint to validate audience & issuer if configured
+  if (configuredClientId) {
+    try {
+      const tokenInfoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`);
+      if (tokenInfoRes.ok) {
+        const tokenInfo = await tokenInfoRes.json();
+        if (tokenInfo.aud && tokenInfo.aud !== configuredClientId && tokenInfo.issued_to !== configuredClientId) {
+          throw new Error('Google access token audience mismatch.');
+        }
+      }
+    } catch (e: any) {
+      if (e?.message?.includes('mismatch')) throw e;
+    }
+  }
+
+  // 2. Query userinfo
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    throw new Error('Invalid or expired Google access token.');
+  }
+
+  const data = await res.json();
+  if (!data.sub || !data.email) {
+    throw new Error('Incomplete Google profile returned.');
+  }
+
+  return {
+    sub: data.sub,
+    email: data.email,
+    email_verified: Boolean(data.email_verified),
+    name: data.name,
+    picture: data.picture,
+  };
+}
+
+/**
+ * Verifiers object allows official verification in production and injection in test environments
+ */
+export const googleAuthVerifier = {
+  verifyGoogleToken,
+  verifyGoogleAuthCode,
+  verifyGoogleAccessToken,
+};
 
 // Central Authentication: Register
 app.post('/api/auth/register', (req: Request, res: Response) => {
@@ -763,6 +908,12 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       return res.status(401).json({ error: INVALID_CREDENTIALS_MSG });
     }
 
+    if (!matchedUser.passwordHash) {
+      return res.status(401).json({
+        error: 'This account was registered with Google Sign-In. Please use the "Sign in with Google" button.',
+      });
+    }
+
     const isMatch = verifyPassword(password, matchedUser.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ error: INVALID_CREDENTIALS_MSG });
@@ -780,10 +931,229 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         email: matchedUser.email,
         displayName: matchedUser.displayName,
         username: matchedUser.username,
+        photoURL: matchedUser.picture || null,
+        authProvider: matchedUser.authProvider || (matchedUser.googleId ? 'google' : 'password'),
       },
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Internal login error' });
+  }
+});
+
+// Central Authentication: Google OAuth 2.0 / OpenID Connect Verification & Login
+app.post('/api/auth/google', async (req: Request, res: Response) => {
+  try {
+    const { idToken, credential, code, accessToken, redirectUri } = req.body;
+    const incomingToken = credential || idToken;
+
+    if (!incomingToken && !code && !accessToken) {
+      return res.status(400).json({
+        error: 'Google authentication requires credential, idToken, code, or accessToken.',
+      });
+    }
+
+    let googleUser: VerifiedGoogleUser;
+
+    try {
+      if (incomingToken) {
+        googleUser = await googleAuthVerifier.verifyGoogleToken(incomingToken);
+      } else if (code) {
+        googleUser = await googleAuthVerifier.verifyGoogleAuthCode(code, redirectUri || 'postmessage');
+      } else {
+        googleUser = await googleAuthVerifier.verifyGoogleAccessToken(accessToken);
+      }
+    } catch (verifErr: any) {
+      const msg = verifErr?.message || 'Invalid or unverified Google token.';
+      console.warn('[RouteWise Google Auth] Verification error:', msg);
+      if (msg.includes('not configured')) {
+        return res.status(500).json({ error: msg });
+      }
+      return res.status(401).json({ error: `Google authentication failed: ${msg}` });
+    }
+
+    // Security check: email must be verified by Google
+    if (!googleUser.email_verified) {
+      return res.status(400).json({
+        error: 'Google email address is not verified by Google. Please verify your email with Google and try again.',
+      });
+    }
+
+    const cleanEmail = googleUser.email.trim().toLowerCase();
+    const sub = googleUser.sub;
+    const displayName = (googleUser.name && googleUser.name.trim())
+      ? googleUser.name.trim()
+      : cleanEmail.split('@')[0];
+    const picture = googleUser.picture || null;
+
+    let user: UserRecord | undefined = undefined;
+    let isNewUser = false;
+
+    // 1. Check if user already exists by Google sub identifier
+    for (const u of usersMap.values()) {
+      if (u.googleId && u.googleId === sub) {
+        user = u;
+        if (picture && !user.picture) {
+          user.picture = picture;
+          user.updatedAt = new Date().toISOString();
+        }
+        break;
+      }
+    }
+
+    // 2. Check if user already exists by email (Safe account linking for verified email)
+    if (!user) {
+      for (const u of usersMap.values()) {
+        if (u.email.toLowerCase() === cleanEmail) {
+          user = u;
+          user.googleId = sub;
+          user.emailVerified = true;
+          user.authProvider = user.passwordHash ? 'linked' : 'google';
+          if (picture && !user.picture) {
+            user.picture = picture;
+          }
+          user.updatedAt = new Date().toISOString();
+          console.log(`[RouteWise Google Auth] Linked Google ID ${sub} to existing account: ${cleanEmail} (uid: ${user.uid})`);
+          break;
+        }
+      }
+    }
+
+    // 3. Brand-new Google user registration
+    if (!user) {
+      isNewUser = true;
+      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '_') || 'traveler';
+      let candidateUsername = baseUsername;
+      let suffix = 1;
+
+      const usernameExists = (uname: string) => {
+        for (const u of usersMap.values()) {
+          if (u.username.toLowerCase() === uname.toLowerCase()) return true;
+        }
+        return false;
+      };
+
+      while (usernameExists(candidateUsername)) {
+        suffix++;
+        candidateUsername = `${baseUsername}_${suffix}`;
+      }
+
+      const uid = `usr_g_${sub}`;
+      user = {
+        uid,
+        email: cleanEmail,
+        username: candidateUsername,
+        displayName,
+        passwordHash: '', // Google SSO account
+        googleId: sub,
+        picture: picture || undefined,
+        authProvider: 'google',
+        emailVerified: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      usersMap.set(uid, user);
+      console.log(`[RouteWise Google Auth] Registered new Google user: ${cleanEmail} (username: ${candidateUsername}, uid: ${uid})`);
+    }
+
+    persistUsers(usersMap);
+    const token = generateToken(user);
+
+    return res.status(isNewUser ? 201 : 200).json({
+      success: true,
+      token,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        username: user.username,
+        photoURL: user.picture || picture || null,
+        authProvider: user.authProvider || 'google',
+      },
+    });
+  } catch (err: any) {
+    console.error('[RouteWise Google Auth] Unexpected server error:', err);
+    return res.status(500).json({ error: err.message || 'Internal Google authentication error' });
+  }
+});
+
+// OAuth 2.0 Redirect Callback Route for redirect-based Google OAuth flow
+app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
+  const code = req.query.code as string;
+  const error = req.query.error as string;
+  const frontendUrl = process.env.FRONTEND_URL || 'https://vazhikatti-route.vercel.app';
+
+  if (error || !code) {
+    console.warn('[RouteWise Google Auth] Callback error:', error);
+    return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(error || 'Google login was canceled.')}`);
+  }
+
+  try {
+    const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+    const googleUser = await googleAuthVerifier.verifyGoogleAuthCode(code, redirectUri);
+
+    if (!googleUser.email_verified) {
+      return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent('Google email is not verified.')}`);
+    }
+
+    const cleanEmail = googleUser.email.trim().toLowerCase();
+    const sub = googleUser.sub;
+    const displayName = (googleUser.name && googleUser.name.trim()) ? googleUser.name.trim() : cleanEmail.split('@')[0];
+    const picture = googleUser.picture || null;
+
+    let user: UserRecord | undefined = undefined;
+    for (const u of usersMap.values()) {
+      if (u.googleId === sub) { user = u; break; }
+    }
+    if (!user) {
+      for (const u of usersMap.values()) {
+        if (u.email.toLowerCase() === cleanEmail) {
+          user = u;
+          user.googleId = sub;
+          user.emailVerified = true;
+          user.authProvider = user.passwordHash ? 'linked' : 'google';
+          if (picture && !user.picture) user.picture = picture;
+          user.updatedAt = new Date().toISOString();
+          break;
+        }
+      }
+    }
+    if (!user) {
+      const baseUsername = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_-]/g, '_') || 'traveler';
+      let candidateUsername = baseUsername;
+      let suffix = 1;
+      const usernameExists = (uname: string) => {
+        for (const u of usersMap.values()) {
+          if (u.username.toLowerCase() === uname.toLowerCase()) return true;
+        }
+        return false;
+      };
+      while (usernameExists(candidateUsername)) {
+        suffix++;
+        candidateUsername = `${baseUsername}_${suffix}`;
+      }
+      const uid = `usr_g_${sub}`;
+      user = {
+        uid,
+        email: cleanEmail,
+        username: candidateUsername,
+        displayName,
+        passwordHash: '',
+        googleId: sub,
+        picture: picture || undefined,
+        authProvider: 'google',
+        emailVerified: true,
+        createdAt: new Date().toISOString(),
+      };
+      usersMap.set(uid, user);
+    }
+
+    persistUsers(usersMap);
+    const token = generateToken(user);
+
+    return res.redirect(`${frontendUrl}/login?googleToken=${encodeURIComponent(token)}`);
+  } catch (err: any) {
+    console.error('[RouteWise Google Auth] Callback exchange failed:', err);
+    return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(err?.message || 'Google authentication failed.')}`);
   }
 });
 
@@ -797,6 +1167,8 @@ app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) 
       email: user.email,
       displayName: user.displayName,
       username: user.username,
+      photoURL: user.picture || null,
+      authProvider: user.authProvider || (user.googleId ? 'google' : 'password'),
       createdAt: user.createdAt,
     },
   });

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { saveDemoUser, verifyBackendSession, type AuthUser } from '../services/authService';
 import { 
   Compass, 
   User, 
@@ -26,6 +27,47 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+
+  // Handle Google OAuth redirect callback tokens or errors
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleToken = params.get('googleToken') || params.get('token');
+    const urlError = params.get('error');
+
+    if (urlError) {
+      setErrors({ general: decodeURIComponent(urlError) });
+    }
+
+    if (googleToken) {
+      setIsGoogleSubmitting(true);
+      verifyBackendSession(googleToken).then((isValid) => {
+        if (isValid) {
+          try {
+            const parts = googleToken.split('.');
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            const authUser: AuthUser = {
+              uid: payload.uid,
+              email: payload.email,
+              displayName: payload.username,
+              username: payload.username,
+              token: googleToken,
+              isDemo: false,
+            };
+            saveDemoUser(authUser);
+            window.location.href = from;
+          } catch {
+            setErrors({ general: 'Failed to parse Google authentication token.' });
+          }
+        } else {
+          setErrors({ general: 'Google authentication session was not accepted by the server.' });
+        }
+      }).catch(() => {
+        setErrors({ general: 'Failed to verify Google sign-in redirect.' });
+      }).finally(() => {
+        setIsGoogleSubmitting(false);
+      });
+    }
+  }, [from]);
 
   const validateForm = (): boolean => {
     const newErrors: { email?: string; password?: string } = {};
