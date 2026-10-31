@@ -167,3 +167,4 @@ export const CreateEditTripModal: React.FC<CreateEditTripModalProps> = ({
     </div>
   );
 };
+

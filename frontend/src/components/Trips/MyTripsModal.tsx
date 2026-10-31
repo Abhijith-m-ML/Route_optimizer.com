@@ -274,3 +274,4 @@ export const MyTripsModal: React.FC<MyTripsModalProps> = ({
     </div>
   );
 };
+

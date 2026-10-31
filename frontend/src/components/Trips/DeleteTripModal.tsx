@@ -112,3 +112,4 @@ export const DeleteTripModal: React.FC<DeleteTripModalProps> = ({
     </div>
   );
 };
+

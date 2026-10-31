@@ -601,6 +601,12 @@ export const DashboardPage: React.FC = () => {
         onSelectTrip={setActiveTripId}
         onCreateNewTrip={() => setIsCreateTripModalOpen(true)}
         onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
+        activeMobileTab={mobileView}
+        onSelectMobileTab={(tab) => {
+          setMobileView(tab);
+          setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+          setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+        }}
       />
 
       {/* Mobile / Tablet Tab Toggle Bar */}

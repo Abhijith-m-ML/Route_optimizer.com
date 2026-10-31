@@ -66,6 +66,22 @@
   margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Mobile drawer smooth slide animation */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Prevent elastic pull-to-refresh and grey tap flash on mobile */
 html, body {
   overscroll-behavior-y: none;
