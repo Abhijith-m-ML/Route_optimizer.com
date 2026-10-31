@@ -210,24 +210,44 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const originalConsoleError = console.error;
     console.error = (...args: unknown[]) => {
       const text = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-      if (text.includes('ApiNotActivatedMapError')) {
+      if (text.includes('RefererNotAllowedMapError')) {
         setStatus('error');
         setErrorMessage(
-          'Maps JavaScript API is not activated on your Google Cloud project. To render interactive map tiles and markers, please enable the "Maps JavaScript API" in your Google Cloud Console.'
+          'Domain not authorized (RefererNotAllowedMapError): In Google Cloud Console → APIs & Services → Credentials, edit your API key and under Website Restrictions add "https://vazhikatti-route.vercel.app/*" or choose "None" (no restriction).'
         );
       } else if (text.includes('BillingNotEnabledMapError')) {
         setStatus('error');
         setErrorMessage(
-          'Billing is not enabled on your Google Cloud project. Please attach a billing account in Google Cloud Console to render map tiles.'
+          'Billing is not enabled on your Google Cloud project (BillingNotEnabledMapError). Google requires a billing account to be linked (Google provides $200 free credit monthly). Please link a billing account in Google Cloud Console.'
+        );
+      } else if (text.includes('ApiNotActivatedMapError')) {
+        setStatus('error');
+        setErrorMessage(
+          'Maps JavaScript API is not activated on your Google Cloud project (ApiNotActivatedMapError). Please enable "Maps JavaScript API" in Google Cloud Console.'
+        );
+      } else if (text.includes('InvalidKeyMapError') || text.includes('DeletedKeyMapError')) {
+        setStatus('error');
+        setErrorMessage(
+          'Invalid or deleted API key. Please check your VITE_GOOGLE_MAPS_API_KEY setting in Vercel environment variables.'
         );
       }
       originalConsoleError.apply(console, args);
     };
 
     // Listen for Google Maps runtime auth rejection
-    const unsubscribeAuthFailure = onGoogleMapsAuthFailure((msg) => {
+    const unsubscribeAuthFailure = onGoogleMapsAuthFailure((_msg) => {
       setStatus('error');
-      setErrorMessage(msg);
+      setErrorMessage((prev) => {
+        if (prev && !prev.startsWith('Google Maps authorization failed')) {
+          return prev;
+        }
+        return (
+          'Google Maps authorization failed. Since your APIs are enabled, this is usually caused by: ' +
+          '1) Website (HTTP Referrer) restrictions blocking your Vercel domain — add "https://vazhikatti-route.vercel.app/*" or select "None". ' +
+          '2) Billing account not linked to the Google Cloud Project (required by Google, $200 free credit included monthly). ' +
+          '3) Key API restrictions — ensure "Maps JavaScript API", "Places API", and "Directions API" are allowed, or select "Don\'t restrict key".'
+        );
+      });
     });
 
     // Handle responsive container resize
@@ -672,22 +692,32 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               {errorMessage || 'Google Maps failed to load. Please verify your API key restrictions and billing settings in Google Cloud Console.'}
             </p>
 
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={initMap}
-                className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs py-2.5 px-3 rounded-xl border border-slate-700 transition"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Retry Map</span>
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={initMap}
+                  className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs py-2.5 px-3 rounded-xl border border-slate-700 transition"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retry Map</span>
+                </button>
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-lg transition"
+                >
+                  <span>API Key & Restrictions</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
               <a
-                href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com"
+                href="https://console.cloud.google.com/billing"
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-lg transition"
+                className="w-full text-center text-[11px] text-slate-400 hover:text-white transition py-1"
               >
-                <span>Enable Maps API</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+                Check Billing Account Status in Google Cloud →
               </a>
             </div>
           </div>
