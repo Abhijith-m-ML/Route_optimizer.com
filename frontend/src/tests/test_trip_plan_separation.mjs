@@ -111,8 +111,8 @@ assert(
   '10. Trip Plan displays route distance and estimated travel time'
 );
 assert(
-  sidebarCode.includes('onOpenShare') && sidebarCode.includes('Share Destinations List'),
-  '11. Trip Plan provides sharing controls directly in the interface'
+  dashboardCode.includes('<ShareDialog') || fs.readFileSync(path.join(srcDir, 'components', 'Navbar.tsx'), 'utf-8').includes('handleOpenShare'),
+  '11. Sharing dialog controls available for destination lists'
 );
 assert(
   sidebarCode.includes('onSwitchToMap') && sidebarCode.includes('View Route on Interactive Map'),

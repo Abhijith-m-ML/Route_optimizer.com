@@ -4,7 +4,7 @@ import { RouteOptimizer } from './RouteOptimizer';
 import { DestinationList } from './DestinationList';
 import { WelcomeCard } from './WelcomeCard';
 import type { Destination, RouteMetrics, SelectedStop, TravelMode } from '../../types';
-import { Info, Edit3, Check, Share2, Route, Map as MapIcon } from 'lucide-react';
+import { Info, Edit3, Check, Route, Map as MapIcon } from 'lucide-react';
 
 interface SidebarProps {
   tripTitle?: string;
@@ -50,7 +50,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedState = 'All States',
   onOpenTutorial,
   onSwitchToMap,
-  onOpenShare,
 }) => {
   const selectedIds = stops.map((s) => s.id);
 
@@ -183,26 +182,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
 
-            {/* Route Optimizer Button & Sharing Actions */}
-            <div className="space-y-2">
-              <RouteOptimizer
-                onOptimize={onOptimizeRoute}
-                onReverseRoute={onReverseRoute}
-                stopsCount={stops.length}
-                isOptimized={isOptimized}
-              />
-
-              {onOpenShare && stops.length > 0 && (
-                <button
-                  type="button"
-                  onClick={onOpenShare}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 active:bg-slate-650 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition"
-                >
-                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Share Destinations List</span>
-                </button>
-              )}
-            </div>
+            {/* Route Optimizer Button */}
+            <RouteOptimizer
+              onOptimize={onOptimizeRoute}
+              onReverseRoute={onReverseRoute}
+              stopsCount={stops.length}
+              isOptimized={isOptimized}
+            />
 
             {/* Selected Destinations List (Organized by State) */}
             <DestinationList
