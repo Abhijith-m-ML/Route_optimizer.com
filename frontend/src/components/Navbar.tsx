@@ -7,7 +7,8 @@ import {
   Share2, 
   RotateCcw, 
   LogOut, 
-  User as UserIcon 
+  User as UserIcon,
+  HelpCircle 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ShareDialog } from './ShareDialog';
@@ -24,6 +25,7 @@ interface NavbarProps {
   travelMode?: TravelMode;
   stops?: SelectedStop[];
   selectedState?: string;
+  onOpenOnboarding?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   travelMode = 'DRIVING',
   stops = [],
   selectedState = 'All States',
+  onOpenOnboarding,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(tripTitle);
@@ -85,13 +88,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div>
               <div className="flex items-center space-x-1.5">
                 <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent whitespace-nowrap">
-                  RouteWise
+                  Vazhikatti <span className="hidden">RouteWise</span>
                 </span>
                 <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hidden sm:inline-block">
                   India
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium hidden sm:block">Smart Travel Planner</p>
+              <p className="text-[11px] text-slate-400 font-medium hidden sm:block">Route Optimizer</p>
             </div>
           </Link>
 
@@ -140,6 +143,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right: Actions & User Profile */}
         <div className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-3 flex-shrink-0">
+          {/* Quick Guide / Onboarding Tutorial Button */}
+          {onOpenOnboarding && (
+            <button
+              onClick={onOpenOnboarding}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-slate-300 hover:text-indigo-400 active:text-indigo-300 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 transition flex items-center justify-center flex-shrink-0"
+              title="How to use Vazhikatti"
+              aria-label="App guide and tutorial"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Share Destinations Button (Opens State-Based Share Dialog) */}
           <button
             onClick={handleOpenShare}
@@ -218,6 +233,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div className="py-1">
+                    {onOpenOnboarding && (
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onOpenOnboarding();
+                        }}
+                        className="w-full flex items-center space-x-2.5 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition text-left"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>How to Use Vazhikatti</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center space-x-2.5 px-3.5 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition text-left"

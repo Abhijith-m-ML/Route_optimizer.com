@@ -119,10 +119,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [currentTheme, setCurrentTheme] = useState<MapThemeType>('dark');
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
   const [mobileSelectedStop, setMobileSelectedStop] = useState<{ stop: SelectedStop; index: number } | null>(null);
+  const userClickedStopIdRef = useRef<string | null>(null);
 
-  // Synchronize mobileSelectedStop with activeStopId and stops
+  // Synchronize mobileSelectedStop with activeStopId only upon explicit user interaction
   useEffect(() => {
-    if (!activeStopId || stops.length === 0) {
+    if (!activeStopId || stops.length === 0 || userClickedStopIdRef.current !== activeStopId) {
       setMobileSelectedStop(null);
       return;
     }
@@ -169,6 +170,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         streetViewControl: true,
         fullscreenControl: false,
         gestureHandling: 'greedy',
+        clickableIcons: false, // Prevents Google's unsolicited default POI popups from cluttering mobile map
       });
 
       mapInstanceRef.current = map;
@@ -177,6 +179,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       map.addListener('click', () => {
         infoWindowRef.current?.close();
         setMobileSelectedStop(null);
+        userClickedStopIdRef.current = null;
       });
 
       // Initialize single reusable InfoWindow
@@ -442,6 +445,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
         const currentMarker = marker;
         currentMarker.addListener('click', () => {
+          userClickedStopIdRef.current = stop.id;
           onSelectStop?.(stop.id);
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
             infoWindowRef.current?.close();
@@ -460,8 +464,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         marker.setZIndex(isSelected ? 9999 : index + 100);
       }
 
-      // If this marker is selected, open InfoWindow on desktop or Mobile card on mobile
-      if (isSelected && marker) {
+      // Only open popup if explicitly selected by user interaction, not on passive initial load
+      if (isSelected && marker && userClickedStopIdRef.current === stop.id) {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) {
           infoWindowRef.current?.close();
           setMobileSelectedStop({ stop, index });
@@ -483,19 +487,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if (currZoom < 13) {
         map.setZoom(13);
       }
-      const latestMarker = markersMapRef.current.get(latestStop.id);
-      if (latestMarker) {
-        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-          infoWindowRef.current?.close();
-          setMobileSelectedStop({ stop: latestStop, index: stops.length - 1 });
-        } else {
-          openInfoWindowForStop(latestStop, latestMarker, stops.length - 1);
-        }
-      }
     } else if (currentCount === 0 && prevCount > 0) {
       // Itinerary cleared: close InfoWindow and reset to Mumbai center
       infoWindowRef.current?.close();
       setMobileSelectedStop(null);
+      userClickedStopIdRef.current = null;
       map.panTo(MUMBAI_CENTER);
       map.setZoom(DEFAULT_ZOOM);
     }

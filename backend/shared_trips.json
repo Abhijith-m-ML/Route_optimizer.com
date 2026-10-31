@@ -724,5 +724,247 @@
     "ownerName": "Traveler",
     "totalDestinations": 7,
     "createdAt": "2026-10-31T17:35:11.126Z"
+  },
+  "shr_4837070c208e": {
+    "shareId": "shr_4837070c208e",
+    "title": "South India Tour",
+    "selectedState": "Kerala",
+    "stops": [
+      {
+        "id": "stop_1",
+        "placeId": "",
+        "name": "Fort Kochi",
+        "address": "",
+        "shortAddress": "",
+        "city": "Kochi",
+        "state": "Kerala",
+        "country": "India",
+        "coordinates": {
+          "lat": 9.9658,
+          "lng": 76.2421
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_2",
+        "placeId": "",
+        "name": "Munnar",
+        "address": "",
+        "shortAddress": "",
+        "city": "Idukki",
+        "state": "Kerala",
+        "country": "India",
+        "coordinates": {
+          "lat": 10.0889,
+          "lng": 77.0595
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_3",
+        "placeId": "",
+        "name": "Wayanad",
+        "address": "",
+        "shortAddress": "",
+        "city": "Wayanad",
+        "state": "Kerala",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.6854,
+          "lng": 76.132
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 3,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "travelMode": "DRIVING",
+    "ownerName": "Ravi Kumar",
+    "totalDestinations": 3,
+    "createdAt": "2026-10-31T18:32:51.387Z"
+  },
+  "shr_33b94b56e95b": {
+    "shareId": "shr_33b94b56e95b",
+    "title": "Grand India Tour",
+    "selectedState": "All States",
+    "stops": [
+      {
+        "id": "stop_1",
+        "placeId": "",
+        "name": "Fort Kochi",
+        "address": "",
+        "shortAddress": "",
+        "city": "Kochi",
+        "state": "Kerala",
+        "country": "India",
+        "coordinates": {
+          "lat": 9.9658,
+          "lng": 76.2421
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_2",
+        "placeId": "",
+        "name": "Munnar",
+        "address": "",
+        "shortAddress": "",
+        "city": "Idukki",
+        "state": "Kerala",
+        "country": "India",
+        "coordinates": {
+          "lat": 10.0889,
+          "lng": 77.0595
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_3",
+        "placeId": "",
+        "name": "Wayanad",
+        "address": "",
+        "shortAddress": "",
+        "city": "Wayanad",
+        "state": "Kerala",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.6854,
+          "lng": 76.132
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 3,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_4",
+        "placeId": "",
+        "name": "Bengaluru",
+        "address": "",
+        "shortAddress": "",
+        "city": "Bengaluru",
+        "state": "Karnataka",
+        "country": "India",
+        "coordinates": {
+          "lat": 12.9716,
+          "lng": 77.5946
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 4,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_5",
+        "placeId": "",
+        "name": "Mysuru",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mysuru",
+        "state": "Karnataka",
+        "country": "India",
+        "coordinates": {
+          "lat": 12.2958,
+          "lng": 76.6394
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 5,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_6",
+        "placeId": "",
+        "name": "Mumbai",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 19.076,
+          "lng": 72.8777
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 6,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_7",
+        "placeId": "",
+        "name": "Pune",
+        "address": "",
+        "shortAddress": "",
+        "city": "Pune",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.5204,
+          "lng": 73.8567
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 7,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "travelMode": "DRIVING",
+    "ownerName": "Traveler",
+    "totalDestinations": 7,
+    "createdAt": "2026-10-31T18:32:51.392Z"
   }
 }

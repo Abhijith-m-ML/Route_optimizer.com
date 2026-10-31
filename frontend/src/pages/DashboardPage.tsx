@@ -17,6 +17,8 @@ import {
 import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
 import { ResetRouteModal } from '../components/ResetRouteModal';
 import { MobileBottomSheet } from '../components/Sidebar/MobileBottomSheet';
+import { WelcomeCard } from '../components/Sidebar/WelcomeCard';
+import { OnboardingModal } from '../components/OnboardingModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -29,11 +31,15 @@ export const DashboardPage: React.FC = () => {
   const [tripTitle, setTripTitle] = useState(() => savedTrip?.title || 'India Highlights Explorer');
   const [travelMode, setTravelMode] = useState<TravelMode>(() => savedTrip?.travelMode || 'DRIVING');
   const [stops, setStops] = useState<SelectedStop[]>(() => savedTrip?.stops || []);
-  const [activeStopId, setActiveStopId] = useState<string | null>(() => savedTrip?.stops[0]?.id || null);
+  // Keep initial active stop null so no popups open passively on initial page load
+  const [activeStopId, setActiveStopId] = useState<string | null>(null);
   const [isOptimized, setIsOptimized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => savedTrip?.lastSavedAt || null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  // First-time user onboarding modal state
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   // Active state filter for search & organization
   const [selectedState, setSelectedState] = useState<string>('All States');
@@ -45,6 +51,22 @@ export const DashboardPage: React.FC = () => {
   // Reset route confirmation modal state
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  // Intelligent onboarding detection: trigger on first login / visit
+  useEffect(() => {
+    const onboardingKey = `vazhikatti_onboarding_${userId}`;
+    const hasSeen = localStorage.getItem(onboardingKey) || localStorage.getItem('vazhikatti_onboarding_completed');
+    if (!hasSeen) {
+      setIsOnboardingOpen(true);
+    }
+  }, [userId]);
+
+  const handleCompleteOnboarding = () => {
+    const onboardingKey = `vazhikatti_onboarding_${userId}`;
+    localStorage.setItem(onboardingKey, 'true');
+    localStorage.setItem('vazhikatti_onboarding_completed', 'true');
+    setIsOnboardingOpen(false);
+  };
 
   // Sync if saved trip is updated, shared via URL, or loaded from cloud
   useEffect(() => {
@@ -102,9 +124,7 @@ export const DashboardPage: React.FC = () => {
       setTripTitle(loaded.title);
       setTravelMode(loaded.travelMode);
       setLastSavedAt(loaded.lastSavedAt);
-      if (loaded.stops[0]) {
-        setActiveStopId(loaded.stops[0].id);
-      }
+      // Do not auto-select activeStopId so the map starts clean without unsolicited popups
     }
 
     // 3. Check Cloud (Firebase or Backend API) for cross-device sync between laptop & phone
@@ -115,9 +135,6 @@ export const DashboardPage: React.FC = () => {
             setTripTitle(cloudTrip.title);
             setTravelMode(cloudTrip.travelMode);
             setLastSavedAt(cloudTrip.lastSavedAt);
-            if (cloudTrip.stops[0]) {
-              setActiveStopId(cloudTrip.stops[0].id);
-            }
             setToast({
               id: Date.now().toString(),
               type: 'info',
@@ -399,6 +416,7 @@ export const DashboardPage: React.FC = () => {
         travelMode={travelMode}
         stops={stops}
         selectedState={selectedState}
+        onOpenOnboarding={() => setIsOnboardingOpen(true)}
       />
 
       {/* Mobile / Tablet Tab Toggle Bar */}
@@ -462,6 +480,7 @@ export const DashboardPage: React.FC = () => {
             onReverseRoute={handleReverseRoute}
             selectedState={selectedState}
             onSelectState={setSelectedState}
+            onOpenTutorial={() => setIsOnboardingOpen(true)}
           />
         </div>
 
@@ -478,29 +497,49 @@ export const DashboardPage: React.FC = () => {
             onRemoveStop={handleRemoveStop}
           />
 
-          {/* Mobile Collapsible Bottom Sheet (Google Maps Style) */}
-          <MobileBottomSheet
-            tripTitle={tripTitle}
-            onUpdateTitle={setTripTitle}
-            stops={stops}
-            metrics={metrics}
-            travelMode={travelMode}
-            isOptimized={isOptimized}
-            activeStopId={activeStopId}
-            onAddStop={handleAddStop}
-            onSelectStop={(id) => setActiveStopId(id)}
-            onMoveUp={handleMoveUp}
-            onMoveDown={handleMoveDown}
-            onRemoveStop={handleRemoveStop}
-            onUpdateDuration={handleUpdateDuration}
-            onClearAll={handleClearAll}
-            onOptimizeRoute={handleOptimizeRoute}
-            onReverseRoute={handleReverseRoute}
-            selectedState={selectedState}
-            onSelectState={setSelectedState}
-          />
+          {/* Mobile Welcome Experience when 0 destinations are selected */}
+          {stops.length === 0 && (
+            <div className="lg:hidden absolute inset-x-3 top-3 z-30 max-h-[calc(100dvh-130px)] overflow-y-auto pointer-events-auto">
+              <WelcomeCard
+                onAddStop={handleAddStop}
+                selectedState={selectedState}
+                onOpenTutorial={() => setIsOnboardingOpen(true)}
+              />
+            </div>
+          )}
+
+          {/* Mobile Collapsible Bottom Sheet (Active Route Experience) */}
+          {stops.length > 0 && (
+            <MobileBottomSheet
+              tripTitle={tripTitle}
+              onUpdateTitle={setTripTitle}
+              stops={stops}
+              metrics={metrics}
+              travelMode={travelMode}
+              isOptimized={isOptimized}
+              activeStopId={activeStopId}
+              onAddStop={handleAddStop}
+              onSelectStop={(id) => setActiveStopId(id)}
+              onMoveUp={handleMoveUp}
+              onMoveDown={handleMoveDown}
+              onRemoveStop={handleRemoveStop}
+              onUpdateDuration={handleUpdateDuration}
+              onClearAll={handleClearAll}
+              onOptimizeRoute={handleOptimizeRoute}
+              onReverseRoute={handleReverseRoute}
+              selectedState={selectedState}
+              onSelectState={setSelectedState}
+            />
+          )}
         </div>
       </main>
+
+      {/* First-Time Intelligent Onboarding Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onComplete={handleCompleteOnboarding}
+      />
 
       {/* Shared Destination Preview & Import Modal */}
       <SharedTripPreviewModal

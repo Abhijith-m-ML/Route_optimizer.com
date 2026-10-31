@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { SearchBox } from './SearchBox';
 import { RouteOptimizer } from './RouteOptimizer';
 import { DestinationList } from './DestinationList';
+import { WelcomeCard } from './WelcomeCard';
 import type { Destination, RouteMetrics, SelectedStop, TravelMode } from '../../types';
 import { Info, Edit3, Check } from 'lucide-react';
 
@@ -24,6 +25,7 @@ interface SidebarProps {
   onReverseRoute: () => void;
   selectedState?: string;
   onSelectState?: (state: string) => void;
+  onOpenTutorial?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOptimizeRoute,
   onReverseRoute,
   selectedState = 'All States',
+  onOpenTutorial,
 }) => {
   const selectedIds = stops.map((s) => s.id);
 
@@ -115,49 +118,60 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* Destination Search Bar */}
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-            Find & Add Destinations
-          </label>
-          <SearchBox 
-            onAddStop={onAddStop} 
-            selectedIds={selectedIds} 
-            selectedPlaceIds={stops.map((s) => s.placeId).filter(Boolean) as string[]}
+        {/* Main Content: Welcome Card for 0 stops or Active Route Planner for 1+ stops */}
+        {stops.length === 0 ? (
+          <WelcomeCard
+            onAddStop={onAddStop}
             selectedState={selectedState}
+            onOpenTutorial={onOpenTutorial || (() => {})}
           />
-        </div>
+        ) : (
+          <>
+            {/* Destination Search Bar */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                Find & Add Destinations
+              </label>
+              <SearchBox 
+                onAddStop={onAddStop} 
+                selectedIds={selectedIds} 
+                selectedPlaceIds={stops.map((s) => s.placeId).filter(Boolean) as string[]}
+                selectedState={selectedState}
+              />
+            </div>
 
-        {/* Route Optimizer Button */}
-        <RouteOptimizer
-          onOptimize={onOptimizeRoute}
-          onReverseRoute={onReverseRoute}
-          stopsCount={stops.length}
-          isOptimized={isOptimized}
-        />
+            {/* Route Optimizer Button */}
+            <RouteOptimizer
+              onOptimize={onOptimizeRoute}
+              onReverseRoute={onReverseRoute}
+              stopsCount={stops.length}
+              isOptimized={isOptimized}
+            />
 
-        {/* Selected Destinations List (Organized by State) */}
-        <DestinationList
-          stops={stops}
-          activeStopId={activeStopId}
-          onSelectStop={onSelectStop}
-          onMoveUp={onMoveUp}
-          onMoveDown={onMoveDown}
-          onRemove={onRemoveStop}
-          onUpdateDuration={onUpdateDuration}
-          onClearAll={onClearAll}
-          onAddStop={onAddStop}
-          travelMode={travelMode}
-        />
+            {/* Selected Destinations List (Organized by State) */}
+            <DestinationList
+              stops={stops}
+              activeStopId={activeStopId}
+              onSelectStop={onSelectStop}
+              onMoveUp={onMoveUp}
+              onMoveDown={onMoveDown}
+              onRemove={onRemoveStop}
+              onUpdateDuration={onUpdateDuration}
+              onClearAll={onClearAll}
+              onAddStop={onAddStop}
+              travelMode={travelMode}
+            />
 
-        {/* Travel Pro-Tip Callout */}
-        <div className="bg-slate-950/40 rounded-xl p-3 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2.5">
-          <Info className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold text-slate-200">Travel Insight: </span>
-            Add your destinations or use your current location as a starting point. Click &quot;Optimize Route&quot; to reorder stops for the most efficient travel time and distance.
-          </div>
-        </div>
+            {/* Travel Pro-Tip Callout */}
+            <div className="bg-slate-950/40 rounded-xl p-3 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-slate-200">Travel Insight: </span>
+                Add your destinations or use your current location as a starting point. Click &quot;Optimize Route&quot; to reorder stops for the most efficient travel time and distance.
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );
