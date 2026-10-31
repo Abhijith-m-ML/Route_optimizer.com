@@ -11,7 +11,8 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
 
-import { getBackendUrl } from './tripService';
+import { getBackendUrl, getBackendCandidateUrls } from './tripService';
+export { getBackendUrl, getBackendCandidateUrls };
 
 export interface AuthUser {
   uid: string;
@@ -147,10 +148,42 @@ export function getAuthErrorMessage(error: unknown): string {
  * Connects to the central backend API and returns authenticated user with token.
  * Throws an error on duplicate registrations or validation failures.
  */
+/**
+ * Attempt a fetch against candidate backend URLs with automatic fallback.
+ * Allows seamless connection to local backend or cloud backend.
+ */
+async function fetchWithBackendCandidates(
+  path: string,
+  options: RequestInit,
+  timeoutMs: number = 10000
+): Promise<Response> {
+  const candidateUrls = getBackendCandidateUrls();
+  let lastError: any = null;
+
+  for (const baseUrl of candidateUrls) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(`${baseUrl}${path}`, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      return res;
+    } catch (err: any) {
+      console.warn(`[RouteWise Auth] Attempt to ${baseUrl}${path} failed:`, err?.message || err);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error('Unable to connect to the authentication server.');
+}
+
 export async function registerWithEmail(
   email: string,
   pass: string,
-  displayName: string
+  displayName: string,
+  username?: string
 ): Promise<AuthUser> {
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail) {
@@ -173,6 +206,7 @@ export async function registerWithEmail(
       uid: credential.user.uid,
       email: credential.user.email,
       displayName: credential.user.displayName || displayName,
+      username: username?.trim() || email.trim().split('@')[0],
       photoURL: credential.user.photoURL,
     };
     saveDemoUser(authUser);
@@ -180,13 +214,17 @@ export async function registerWithEmail(
   }
 
   // 2. Real Central Backend Registration
-  const backendUrl = getBackendUrl();
   let res: Response;
   try {
-    res = await fetch(`${backendUrl}/api/auth/register`, {
+    res = await fetchWithBackendCandidates('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, password: pass, displayName }),
+      body: JSON.stringify({
+        email: cleanEmail,
+        password: pass,
+        displayName,
+        username: username?.trim() || undefined,
+      }),
     });
   } catch (err: any) {
     console.error('[RouteWise Auth] Registration connection failed:', err);
@@ -238,7 +276,7 @@ export async function loginWithEmail(
   // 1. Firebase Auth (if configured)
   if (isFirebaseConfigured && auth) {
     const isEmail = trimmedId.includes('@');
-    const normalizedEmail = isEmail ? trimmedId : `${trimmedId.toLowerCase()}@routewise.in`;
+    const normalizedEmail = isEmail ? trimmedId.toLowerCase() : `${trimmedId}@routewise.in`;
     const displayName = isEmail ? trimmedId.split('@')[0] : trimmedId;
     const persistenceType = rememberMe ? browserLocalPersistence : browserSessionPersistence;
     await setPersistence(auth, persistenceType);
@@ -247,6 +285,7 @@ export async function loginWithEmail(
       uid: credential.user.uid,
       email: credential.user.email,
       displayName: credential.user.displayName || displayName,
+      username: isEmail ? credential.user.email?.split('@')[0] : trimmedId,
       photoURL: credential.user.photoURL,
     };
     if (rememberMe) {
@@ -258,10 +297,9 @@ export async function loginWithEmail(
   }
 
   // 2. Real Central Backend Login
-  const backendUrl = getBackendUrl();
   let res: Response;
   try {
-    res = await fetch(`${backendUrl}/api/auth/login`, {
+    res = await fetchWithBackendCandidates('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier: trimmedId, password: pass }),
@@ -306,17 +344,20 @@ export async function loginWithEmail(
 /**
  * Verify current session with the backend
  */
-export async function verifyBackendSession(token: string): Promise<boolean> {
+export async function verifyBackendSession(token: string): Promise<boolean | null> {
   try {
-    const backendUrl = getBackendUrl();
-    const res = await fetch(`${backendUrl}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const res = await fetchWithBackendCandidates(
+      '/api/auth/me',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+      5000
+    );
     return res.ok;
   } catch {
-    return false;
+    return null;
   }
 }
 

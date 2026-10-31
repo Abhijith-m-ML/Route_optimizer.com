@@ -20,7 +20,7 @@ export interface AuthContextType {
   loading: boolean;
   isConfigured: boolean;
   login: (email: string, pass: string, rememberMe?: boolean) => Promise<AuthUser>;
-  signup: (email: string, pass: string, displayName: string) => Promise<AuthUser>;
+  signup: (email: string, pass: string, displayName: string, username?: string) => Promise<AuthUser>;
   loginWithGoogle: () => Promise<AuthUser>;
   loginDemo: () => Promise<AuthUser>;
   logout: () => Promise<void>;
@@ -61,7 +61,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Asynchronously verify token with backend if present
       if (savedDemo.token && !savedDemo.isDemo) {
         verifyBackendSession(savedDemo.token).then((isValid) => {
-          if (!isValid) {
+          // Only invalidate session if the token is explicitly rejected (HTTP 401)
+          // Keep session if backend is warming up or device is temporarily offline
+          if (isValid === false) {
             clearDemoUser();
             setUser(null);
           }
@@ -77,8 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return authUser;
   };
 
-  const signup = async (email: string, pass: string, displayName: string) => {
-    const authUser = await registerWithEmail(email, pass, displayName);
+  const signup = async (email: string, pass: string, displayName: string, username?: string) => {
+    const authUser = await registerWithEmail(email, pass, displayName, username);
     setUser(authUser);
     return authUser;
   };

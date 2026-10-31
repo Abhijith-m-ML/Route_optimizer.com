@@ -244,6 +244,37 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
+/**
+ * Look up a user record by identifier (email, username, or UID).
+ * - Email lookup is case-insensitive (e.g. user@domain.com === USER@DOMAIN.COM).
+ * - Username and UID lookups are strictly case-sensitive exact identity matches.
+ * - Display names are non-unique and are NOT used for credential resolution.
+ */
+export function findUserByIdentifier(identifier: string): UserRecord | undefined {
+  const trimmed = identifier.trim();
+  if (!trimmed) return undefined;
+
+  const isEmail = trimmed.includes('@');
+  const normalizedEmail = isEmail ? trimmed.toLowerCase() : null;
+
+  for (const u of usersMap.values()) {
+    // 1. Strict case-sensitive exact username match
+    if (u.username === trimmed) {
+      return u;
+    }
+    // 2. Strict case-sensitive exact UID match
+    if (u.uid === trimmed) {
+      return u;
+    }
+    // 3. Case-insensitive email match
+    if (normalizedEmail && u.email.toLowerCase() === normalizedEmail) {
+      return u;
+    }
+  }
+
+  return undefined;
+}
+
 // Central Authentication: Register
 app.post('/api/auth/register', (req: Request, res: Response) => {
   try {
@@ -267,19 +298,36 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
     }
 
+    // Extract username: preserve exact user-entered casing
     const rawUsername = (typeof username === 'string' && username.trim())
       ? username.trim()
-      : cleanEmail.split('@')[0];
-    const cleanUsername = rawUsername.toLowerCase();
+      : email.trim().split('@')[0];
+
+    if (!rawUsername || rawUsername.length < 2) {
+      return res.status(400).json({ error: 'Username must be at least 2 characters long.' });
+    }
+
+    if (/\s/.test(rawUsername)) {
+      return res.status(400).json({ error: 'Username cannot contain spaces.' });
+    }
+
+    const finalUsername = rawUsername;
     const finalDisplayName = (typeof displayName === 'string' && displayName.trim())
       ? displayName.trim()
-      : rawUsername;
+      : finalUsername;
 
-    // Check if user already exists (case-insensitive email or username)
+    // Check if user already exists:
+    // - Email comparison is case-insensitive (standard RFC email identity)
+    // - Username comparison is strictly case-sensitive (exact username identity)
     for (const u of usersMap.values()) {
-      if (u.email.toLowerCase() === cleanEmail || u.username.toLowerCase() === cleanUsername) {
+      if (u.email.toLowerCase() === cleanEmail) {
         return res.status(400).json({
-          error: 'An account with this email address or username already exists. Please log in instead.',
+          error: 'An account with this email address already exists. Please log in instead.',
+        });
+      }
+      if (u.username === finalUsername) {
+        return res.status(400).json({
+          error: 'An account with this username already exists. Please choose a different username.',
         });
       }
     }
@@ -289,7 +337,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     const newUser: UserRecord = {
       uid,
       email: cleanEmail,
-      username: cleanUsername,
+      username: finalUsername, // Exact casing preserved!
       displayName: finalDisplayName,
       passwordHash,
       createdAt: new Date().toISOString(),
@@ -300,7 +348,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 
     const token = generateToken(newUser);
 
-    console.log(`[RouteWise Auth] New user registered: ${cleanEmail} (${uid})`);
+    console.log(`[RouteWise Auth] New user registered: ${cleanEmail} (username: ${finalUsername}, uid: ${uid})`);
 
     return res.status(201).json({
       success: true,
@@ -325,24 +373,13 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'User ID or Email and password are required.' });
     }
 
-    const cleanInput = identifier.trim().toLowerCase();
-    if (!cleanInput) {
+    const rawIdentifier = identifier.trim();
+    if (!rawIdentifier) {
       return res.status(400).json({ error: 'User ID or Email cannot be empty.' });
     }
 
-    // Find user by email, username, displayName, or uid
-    let matchedUser: UserRecord | undefined;
-    for (const u of usersMap.values()) {
-      if (
-        u.email.toLowerCase() === cleanInput ||
-        u.username.toLowerCase() === cleanInput ||
-        u.displayName.toLowerCase() === cleanInput ||
-        u.uid.toLowerCase() === cleanInput
-      ) {
-        matchedUser = u;
-        break;
-      }
-    }
+    // Look up user: case-sensitive for username and UID; case-insensitive for email
+    const matchedUser = findUserByIdentifier(rawIdentifier);
 
     // Generic error message prevents username/email enumeration
     const INVALID_CREDENTIALS_MSG = 'Invalid credentials. Please verify your username/email and password.';
@@ -358,7 +395,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
     const token = generateToken(matchedUser);
 
-    console.log(`[RouteWise Auth] User logged in: ${matchedUser.email}`);
+    console.log(`[RouteWise Auth] User logged in: ${matchedUser.email} (username: ${matchedUser.username})`);
 
     return res.status(200).json({
       success: true,

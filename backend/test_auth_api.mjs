@@ -218,8 +218,95 @@ async function runTests() {
     assert.strictEqual(dupEmail.status, 400, 'Duplicate email must return HTTP 400');
     console.log('  -> Pass: Backend rejects malformed / duplicate data with explicit HTTP 400 errors');
 
+    // Scenario 13: Case-sensitive username preservation and distinct accounts
+    console.log('\nScenario 13: Case-sensitive username preservation and distinct account creation');
+    const timeSeed = Date.now();
+    const caseUserUpper = `Explorer_${timeSeed}`;
+    const caseUserLower = `explorer_${timeSeed}`;
+    const caseEmailUpper = `explorer_upper_${timeSeed}@mumbai.com`;
+    const caseEmailLower = `explorer_lower_${timeSeed}@mumbai.com`;
+    const casePassUpper = 'PasswordUpper@2026';
+    const casePassLower = 'PasswordLower@2026';
+
+    const regUpperRes = await postJson('/api/auth/register', {
+      email: caseEmailUpper,
+      username: caseUserUpper,
+      password: casePassUpper,
+      displayName: 'Explorer Upper',
+    });
+    assert.strictEqual(regUpperRes.status, 201, 'Upper case username registration must succeed');
+    assert.strictEqual(regUpperRes.data.user.username, caseUserUpper, 'Exact username casing must be preserved');
+    console.log(`  -> Pass: Registered account with exact casing "${caseUserUpper}"`);
+
+    // Scenario 14: Register username differing only in capitalization
+    console.log('Scenario 14: Register username differing only in capitalization as distinct account');
+    const regLowerRes = await postJson('/api/auth/register', {
+      email: caseEmailLower,
+      username: caseUserLower,
+      password: casePassLower,
+      displayName: 'Explorer Lower',
+    });
+    assert.strictEqual(regLowerRes.status, 201, 'Lower case username registration must succeed as separate account');
+    assert.strictEqual(regLowerRes.data.user.username, caseUserLower, 'Exact username casing must be preserved');
+    assert.notStrictEqual(regUpperRes.data.user.uid, regLowerRes.data.user.uid, 'Accounts must have distinct UIDs');
+    console.log(`  -> Pass: Registered distinct account with casing "${caseUserLower}" (separate UID)`);
+
+    // Scenario 15: Exact duplicate username rejected
+    console.log('Scenario 15: Exact duplicate username must be rejected');
+    const dupUsernameRes = await postJson('/api/auth/register', {
+      email: `another_${timeSeed}@mumbai.com`,
+      username: caseUserUpper, // Exact duplicate of caseUserUpper
+      password: 'AnotherPassword@123',
+    });
+    assert.strictEqual(dupUsernameRes.status, 400, 'Duplicate username must return HTTP 400');
+    console.log('  -> Pass: Exact duplicate username rejected with HTTP 400');
+
+    // Scenario 16: Strict case-sensitive authentication for both accounts
+    console.log('Scenario 16: Strict case-sensitive authentication for both accounts');
+    const loginUpper = await postJson('/api/auth/login', {
+      identifier: caseUserUpper,
+      password: casePassUpper,
+    });
+    assert.strictEqual(loginUpper.status, 200, 'Login with exact upper username must succeed');
+    assert.strictEqual(loginUpper.data.user.username, caseUserUpper);
+    assert.strictEqual(loginUpper.data.user.email, caseEmailUpper.toLowerCase());
+
+    const loginLower = await postJson('/api/auth/login', {
+      identifier: caseUserLower,
+      password: casePassLower,
+    });
+    assert.strictEqual(loginLower.status, 200, 'Login with exact lower username must succeed');
+    assert.strictEqual(loginLower.data.user.username, caseUserLower);
+    assert.strictEqual(loginLower.data.user.email, caseEmailLower.toLowerCase());
+    console.log('  -> Pass: Both accounts authenticate independently with their exact usernames');
+
+    // Scenario 17: Casing mismatch during username login must be rejected
+    console.log('Scenario 17: Casing mismatch during username login must be rejected (401)');
+    const mismatchLogin1 = await postJson('/api/auth/login', {
+      identifier: caseUserLower, // lowercase identifier with uppercase user's password
+      password: casePassUpper,
+    });
+    assert.strictEqual(mismatchLogin1.status, 401, 'Username casing mismatch must be rejected with HTTP 401');
+
+    const mismatchLogin2 = await postJson('/api/auth/login', {
+      identifier: caseUserUpper.toUpperCase(), // ALL-CAPS variation
+      password: casePassUpper,
+    });
+    assert.strictEqual(mismatchLogin2.status, 401, 'ALL-CAPS username variation must be rejected with HTTP 401');
+    console.log('  -> Pass: Incorrectly cased username logins strictly rejected with HTTP 401');
+
+    // Scenario 18: Email authentication remains case-insensitive
+    console.log('Scenario 18: Email authentication remains case-insensitive');
+    const upperEmailLogin = await postJson('/api/auth/login', {
+      identifier: caseEmailUpper.toUpperCase(),
+      password: casePassUpper,
+    });
+    assert.strictEqual(upperEmailLogin.status, 200, 'Uppercase email login must succeed');
+    assert.strictEqual(upperEmailLogin.data.user.username, caseUserUpper);
+    console.log('  -> Pass: Case-insensitive email login verified for RFC compliance');
+
     console.log('\n====================================================');
-    console.log('🎉 ALL 12 SCENARIOS VERIFIED AND PASSED SUCCESSFULLY!');
+    console.log('🎉 ALL 18 SCENARIOS VERIFIED AND PASSED SUCCESSFULLY!');
     console.log('====================================================\n');
     process.exit(0);
   } finally {

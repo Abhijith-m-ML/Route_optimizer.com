@@ -47,26 +47,59 @@ export function getSavedTrip(userId?: string | null): SavedTrip | null {
  */
 export function getBackendUrl(): string {
   const envUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.trim();
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+     window.location.hostname === '127.0.0.1' ||
+     window.location.hostname === '');
 
-  // If custom environment variable is set and NOT pointing to obsolete subdomains, use it
+  // 1. Localhost browser development environment
+  if (isLocalhost) {
+    if (envUrl && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+      return envUrl.replace(/\/+$/, '');
+    }
+    return 'http://localhost:5000';
+  }
+
+  // 2. Production / Deployed environment
   if (
     envUrl &&
     !envUrl.includes('vazhikatti.onrender.com') &&
-    !envUrl.includes('vazhikatti-api.onrender.com')
+    !envUrl.includes('vazhikatti-api.onrender.com') &&
+    !envUrl.includes('localhost') &&
+    !envUrl.includes('127.0.0.1')
   ) {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // Deployed web environments (Vercel, GitHub Pages, custom domain)
-  if (
+  return 'https://vazhikatti-gfuq.onrender.com';
+}
+
+/**
+ * Returns candidate backend URLs to attempt in order of preference.
+ * Enables automatic seamless failover between local server and cloud backend.
+ */
+export function getBackendCandidateUrls(): string[] {
+  const primary = getBackendUrl();
+  const candidates: string[] = [primary];
+  const cloudUrl = 'https://vazhikatti-gfuq.onrender.com';
+  const localUrl = 'http://localhost:5000';
+
+  const isLocalhost =
     typeof window !== 'undefined' &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1'
-  ) {
-    return 'https://vazhikatti-gfuq.onrender.com';
+    (window.location.hostname === 'localhost' ||
+     window.location.hostname === '127.0.0.1' ||
+     window.location.hostname === '');
+
+  if (isLocalhost && !candidates.includes(localUrl)) {
+    candidates.unshift(localUrl);
   }
 
-  return 'http://localhost:5000';
+  if (!candidates.includes(cloudUrl)) {
+    candidates.push(cloudUrl);
+  }
+
+  return candidates;
 }
 
 /**
@@ -95,25 +128,26 @@ export async function getSavedTripFromCloud(userId?: string | null): Promise<Sav
     }
   }
 
-  // 2. Try Backend API (enables laptop <-> phone synchronization via your Render backend)
-  try {
-    const backendUrl = getBackendUrl();
-    const res = await fetch(`${backendUrl}/api/trips/${cleanId}`);
-    if (res.ok) {
-      const json = await res.json();
-      if (json.trip && Array.isArray(json.trip.stops)) {
-        const data = json.trip as SavedTrip;
-        try {
-          if (userId) {
-            localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
-          }
-          localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
-        } catch {}
-        return data;
+  // 2. Try Backend API (enables laptop <-> phone synchronization with automatic fallback)
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const res = await fetch(`${backendUrl}/api/trips/${cleanId}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.trip && Array.isArray(json.trip.stops)) {
+          const data = json.trip as SavedTrip;
+          try {
+            if (userId) {
+              localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
+            }
+            localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
+          } catch {}
+          return data;
+        }
       }
+    } catch {
+      // Try next candidate backend URL
     }
-  } catch (backendErr) {
-    // Backend offline or warming up
   }
 
   return null;
@@ -164,15 +198,17 @@ export async function saveTripToStorage(
     }
   }
 
-  // 3. Secondary persistence: Backend API (cross-device sync via backend)
-  try {
-    const backendUrl = getBackendUrl();
-    await fetch(`${backendUrl}/api/trips`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: serialized,
-    }).catch(() => {});
-  } catch {}
+  // 3. Secondary persistence: Backend API (cross-device sync via candidate backends)
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const res = await fetch(`${backendUrl}/api/trips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: serialized,
+      });
+      if (res.ok) break;
+    } catch {}
+  }
 
   return trip;
 }
@@ -199,11 +235,12 @@ export async function clearSavedTrip(userId?: string | null): Promise<void> {
   }
 
   // Clear from backend API
-  try {
-    const backendUrl = getBackendUrl();
-    const cleanId = userId ? userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_') : 'default';
-    await fetch(`${backendUrl}/api/trips/${cleanId}`, { method: 'DELETE' }).catch(() => {});
-  } catch {}
+  const cleanId = userId ? userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_') : 'default';
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      await fetch(`${backendUrl}/api/trips/${cleanId}`, { method: 'DELETE' });
+    } catch {}
+  }
 }
 
 /**

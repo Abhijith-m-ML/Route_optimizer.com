@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   Compass, 
   User, 
+  UserCheck,
   Mail, 
   Lock, 
   Eye, 
@@ -15,6 +16,7 @@ import {
 
 export const SignupPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,6 +26,7 @@ export const SignupPage: React.FC = () => {
 
   const [errors, setErrors] = useState<{
     fullName?: string;
+    username?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
@@ -63,6 +66,7 @@ export const SignupPage: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: {
       fullName?: string;
+      username?: string;
       email?: string;
       password?: string;
       confirmPassword?: string;
@@ -73,6 +77,14 @@ export const SignupPage: React.FC = () => {
       newErrors.fullName = 'Full name is required';
     } else if (fullName.trim().length < 2) {
       newErrors.fullName = 'Name must be at least 2 characters';
+    }
+
+    if (username.trim()) {
+      if (username.trim().length < 2) {
+        newErrors.username = 'Username must be at least 2 characters';
+      } else if (/\s/.test(username.trim())) {
+        newErrors.username = 'Username cannot contain spaces';
+      }
     }
 
     if (!email.trim()) {
@@ -111,7 +123,7 @@ export const SignupPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await signup(email.trim(), password, fullName.trim());
+      await signup(email.trim(), password, fullName.trim(), username.trim() || undefined);
       navigate('/dashboard', { replace: true });
     } catch (err) {
       const msg = formatAuthError(err);
@@ -215,6 +227,42 @@ export const SignupPage: React.FC = () => {
               {errors.fullName && (
                 <p className="mt-1 text-xs text-rose-400 flex items-center gap-1 font-medium">
                   <AlertCircle className="w-3 h-3" /> {errors.fullName}
+                </p>
+              )}
+            </div>
+
+            {/* Username Field (Case-sensitive identity) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="signup-username" className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  Username
+                </label>
+                <span className="text-[10px] text-indigo-400 font-medium">Case-sensitive identity</span>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <input
+                  id="signup-username"
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    if (errors.username) setErrors((prev) => ({ ...prev, username: undefined }));
+                  }}
+                  placeholder="e.g. MumbaiExplorer (optional)"
+                  className={`w-full bg-slate-950/80 text-sm text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 py-2.5 border transition focus:outline-none focus:ring-2 ${
+                    errors.username
+                      ? 'border-rose-500/80 focus:ring-rose-500/40'
+                      : 'border-slate-700/80 focus:border-indigo-500 focus:ring-indigo-500/40'
+                  }`}
+                />
+              </div>
+              {errors.username && (
+                <p className="mt-1 text-xs text-rose-400 flex items-center gap-1 font-medium">
+                  <AlertCircle className="w-3 h-3" /> {errors.username}
                 </p>
               )}
             </div>

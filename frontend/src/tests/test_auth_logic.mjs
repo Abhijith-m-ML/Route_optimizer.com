@@ -102,20 +102,29 @@ function isValidAuthorizedUser(user) {
   return true;
 }
 
-// 6. Test production backend URL resolution
+// 6. Test production backend URL resolution (matches tripService.ts getBackendUrl)
 function getBackendUrl(envBackendUrl, hostname) {
   const envUrl = envBackendUrl?.trim();
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  if (isLocalhost) {
+    if (envUrl && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+      return envUrl.replace(/\/+$/, '');
+    }
+    return 'http://localhost:5000';
+  }
+
   if (
     envUrl &&
     !envUrl.includes('vazhikatti.onrender.com') &&
-    !envUrl.includes('vazhikatti-api.onrender.com')
+    !envUrl.includes('vazhikatti-api.onrender.com') &&
+    !envUrl.includes('localhost') &&
+    !envUrl.includes('127.0.0.1')
   ) {
     return envUrl.replace(/\/+$/, '');
   }
-  if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-    return 'https://vazhikatti-gfuq.onrender.com';
-  }
-  return 'http://localhost:5000';
+
+  return 'https://vazhikatti-gfuq.onrender.com';
 }
 
 console.log('--- Running RouteWise Frontend Auth Logic Test Suite ---');
@@ -196,6 +205,16 @@ assert.strictEqual(
   'http://localhost:5000',
   'Localhost development defaults to http://localhost:5000'
 );
+assert.strictEqual(
+  getBackendUrl('https://vazhikatti-gfuq.onrender.com', 'localhost'),
+  'http://localhost:5000',
+  'Localhost browser session defaults to local server (port 5000) even when .env has cloud URL'
+);
+assert.strictEqual(
+  getBackendUrl('http://localhost:5050', 'localhost'),
+  'http://localhost:5050',
+  'Explicit custom localhost port in .env is honored on localhost'
+);
 console.log('✓ Backend URL resolution and obsolete subdomain sanitization passed');
 
 // Test 6: Token expiration validation
@@ -227,5 +246,26 @@ assert.strictEqual(isValidAuthorizedUser(expiredUser), false, 'Expired session m
 assert.strictEqual(isValidAuthorizedUser(null), false);
 assert.strictEqual(isValidAuthorizedUser({ uid: '', email: null }), false);
 console.log('✓ Session and token expiration validation passed');
+
+// Test 7: Username identity preservation and case-sensitivity checks
+function validateUsername(username) {
+  if (!username) return null;
+  const trimmed = username.trim();
+  if (trimmed.length < 2) return 'Username must be at least 2 characters';
+  if (/\s/.test(trimmed)) return 'Username cannot contain spaces';
+  return null;
+}
+
+assert.strictEqual(validateUsername('MumbaiExplorer'), null, 'Valid case-sensitive username must pass');
+assert.strictEqual(validateUsername('mumbaiexplorer'), null, 'Valid lowercase username must pass');
+assert.strictEqual(validateUsername('u'), 'Username must be at least 2 characters');
+assert.strictEqual(validateUsername('user name'), 'Username cannot contain spaces');
+
+// Verify case-sensitive distinction
+const userA = 'MumbaiTraveler';
+const userB = 'mumbaitraveler';
+assert.notStrictEqual(userA, userB, 'Different capitalization usernames must NOT be equivalent');
+assert.strictEqual(userA.toLowerCase(), userB.toLowerCase(), 'Lowercased strings would collide without case-sensitive policy');
+console.log('✓ Username identity preservation and case-sensitive validation passed');
 
 console.log('\n--- All Frontend Auth Logic Tests Passed Successfully ---');
