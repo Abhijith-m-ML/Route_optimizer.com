@@ -10,12 +10,12 @@ import { calculateRouteMetrics, optimizeRouteStops } from '../utils/routeOptimiz
 import { 
   getSavedTrip, 
   saveTripToStorage, 
-  clearSavedTrip,
   getSavedTripFromCloud,
   decodeTripFromUrl,
   fetchSharedTrip
 } from '../services/tripService';
 import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
+import { ResetRouteModal } from '../components/ResetRouteModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -40,6 +40,10 @@ export const DashboardPage: React.FC = () => {
   // Shared trip preview modal state
   const [sharedTripPreview, setSharedTripPreview] = useState<SharedTripData | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+
+  // Reset route confirmation modal state
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Sync if saved trip is updated, shared via URL, or loaded from cloud
   useEffect(() => {
@@ -338,26 +342,46 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleResetTrip = () => {
-    setStops([]);
-    setActiveStopId(null);
-    setIsOptimized(false);
-    setLastSavedAt(null);
-    clearSavedTrip(userId);
+  // Trigger confirmation modal when user clicks Reset
+  const handleRequestReset = () => {
+    setIsResetModalOpen(true);
+  };
 
-    showToast({
-      type: 'info',
-      title: 'Itinerary Reset',
-      description: 'Cleared all destinations and reset saved trip.',
-    });
+  const handleCancelReset = () => {
+    setIsResetModalOpen(false);
+  };
+
+  // Perform route reset only when user confirms in the modal
+  const handleConfirmReset = () => {
+    if (isResetting) return;
+    setIsResetting(true);
+
+    try {
+      // 1. Clear currently selected destinations from active route
+      setStops([]);
+
+      // 2. Reset active stop selection
+      setActiveStopId(null);
+
+      // 3. Reset route optimization status
+      setIsOptimized(false);
+
+      // 4. Close the confirmation modal
+      setIsResetModalOpen(false);
+
+      // 5. Notify user with success confirmation toast
+      showToast({
+        type: 'success',
+        title: 'Route Reset',
+        description: 'Route reset successfully.',
+      });
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const handleClearAll = () => {
-    setStops([]);
-    setActiveStopId(null);
-    setIsOptimized(false);
-    setLastSavedAt(null);
-    clearSavedTrip(userId);
+    handleRequestReset();
   };
 
   return (
@@ -369,7 +393,7 @@ export const DashboardPage: React.FC = () => {
         isSaving={isSaving}
         lastSavedAt={lastSavedAt}
         onSaveTrip={handleSaveTrip}
-        onResetTrip={handleResetTrip}
+        onResetTrip={handleRequestReset}
         stopsCount={stops.length}
         travelMode={travelMode}
         stops={stops}
@@ -462,6 +486,15 @@ export const DashboardPage: React.FC = () => {
         sharedData={sharedTripPreview}
         currentStops={stops}
         onImport={handleImportSharedDestinations}
+      />
+
+      {/* Reset Route Confirmation Modal */}
+      <ResetRouteModal
+        isOpen={isResetModalOpen}
+        isProcessing={isResetting}
+        onCancel={handleCancelReset}
+        onConfirm={handleConfirmReset}
+        stopsCount={stops.length}
       />
 
       {/* Notification Toast */}

@@ -152,8 +152,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <button
             onClick={onResetTrip}
-            className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/70 border border-transparent hover:border-slate-700/60 transition hidden sm:flex items-center justify-center"
-            title="Reset to default stops"
+            className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/70 border border-transparent hover:border-slate-700/60 transition flex items-center justify-center"
+            title="Reset current route"
+            aria-label="Reset route"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
