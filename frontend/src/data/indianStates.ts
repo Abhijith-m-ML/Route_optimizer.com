@@ -100,7 +100,7 @@ export const INDIAN_STATES: IndianState[] = [
     type: 'State',
     center: { lat: 10.8505, lng: 76.2711 },
     radiusMeters: 300000,
-    aliases: ['State of Kerala'],
+    aliases: ['State of Kerala', 'Keralam'],
   },
   {
     name: 'Madhya Pradesh',

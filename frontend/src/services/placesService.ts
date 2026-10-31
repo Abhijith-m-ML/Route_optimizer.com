@@ -197,17 +197,22 @@ export async function searchPlaces(
       };
 
       // Add locationBias if a specific state is selected
+      // Note: Google Places API (New) strictly requires circle.radius <= 50000 meters
       if (stateObj && stateObj.center) {
+        const safeRadius = Math.min(stateObj.radiusMeters || 50000, 50000);
         requestBody.locationBias = {
           circle: {
             center: {
               latitude: stateObj.center.lat,
               longitude: stateObj.center.lng,
             },
-            radius: stateObj.radiusMeters,
+            radius: safeRadius,
           },
         };
       }
+
+      // Restrict search predictions to India
+      requestBody.includedRegionCodes = ['in'];
 
       const response = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
         method: 'POST',
@@ -281,12 +286,14 @@ export async function searchPlaces(
         rawSuggestions = await new Promise((resolve, reject) => {
           const options: google.maps.places.AutocompletionRequest = {
             input: trimmed,
+            componentRestrictions: { country: 'in' },
           };
 
           if (stateObj && window.google?.maps?.Circle) {
+            const safeRadius = Math.min(stateObj.radiusMeters || 50000, 50000);
             options.locationBias = new window.google.maps.Circle({
               center: stateObj.center,
-              radius: stateObj.radiusMeters,
+              radius: safeRadius,
             });
           }
 
