@@ -6,6 +6,21 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
+import {
+  pool,
+  isDatabaseConnected,
+  initDatabaseSchema,
+  loadUsersFromDb,
+  saveUserToDb,
+  loadTripCollectionsFromDb,
+  saveTripCollectionToDb,
+  deleteTripCollectionFromDb,
+  loadSharedTripsFromDb,
+  saveSharedTripToDb,
+  loadLegacyTripsFromDb,
+  saveLegacyTripToDb,
+  deleteLegacyTripFromDb,
+} from './db.js';
 
 dotenv.config();
 
@@ -462,6 +477,88 @@ function persistTripCollections(collections: Map<string, TripRecord>) {
 
 export const tripCollectionsMap = loadPersistedTripCollections();
 
+export let isPostgresReady = false;
+
+/**
+ * Bootstraps and synchronizes data with PostgreSQL when DATABASE_URL is provided.
+ * If the database tables are new and empty, auto-seeds all existing users and trips.
+ * If the database has records, merges them into memory.
+ */
+export async function bootstrapDatabase(): Promise<void> {
+  if (!process.env.DATABASE_URL) {
+    console.log('[RouteWise DB] No DATABASE_URL configured. Running with permanent JSON document store.');
+    return;
+  }
+
+  try {
+    console.log('[RouteWise DB] Connecting to PostgreSQL database...');
+    await initDatabaseSchema();
+    isPostgresReady = true;
+
+    // Load records from DB
+    const dbUsers = await loadUsersFromDb();
+    const dbCollections = await loadTripCollectionsFromDb();
+    const dbShared = await loadSharedTripsFromDb();
+    const dbLegacy = await loadLegacyTripsFromDb();
+
+    console.log(`[RouteWise DB] Connected to PostgreSQL. Found ${dbUsers.size} users, ${dbCollections.size} collections, ${dbShared.size} shared trips in DB.`);
+
+    // 1. Users sync
+    if (dbUsers.size > 0) {
+      for (const [k, v] of dbUsers) {
+        usersMap.set(k, v);
+      }
+    } else if (usersMap.size > 0) {
+      console.log(`[RouteWise DB] Auto-populating empty PostgreSQL with ${usersMap.size} baseline users...`);
+      for (const user of usersMap.values()) {
+        await saveUserToDb(user);
+      }
+    }
+
+    // 2. Collections sync
+    if (dbCollections.size > 0) {
+      for (const [k, v] of dbCollections) {
+        tripCollectionsMap.set(k, v);
+      }
+    } else if (tripCollectionsMap.size > 0) {
+      console.log(`[RouteWise DB] Auto-populating empty PostgreSQL with ${tripCollectionsMap.size} baseline trip collections...`);
+      for (const trip of tripCollectionsMap.values()) {
+        await saveTripCollectionToDb(trip);
+      }
+    }
+
+    // 3. Shared trips sync
+    if (dbShared.size > 0) {
+      for (const [k, v] of dbShared) {
+        sharedTripsMap.set(k, v);
+      }
+    } else if (sharedTripsMap.size > 0) {
+      console.log(`[RouteWise DB] Auto-populating empty PostgreSQL with ${sharedTripsMap.size} baseline shared trips...`);
+      for (const trip of sharedTripsMap.values()) {
+        await saveSharedTripToDb(trip);
+      }
+    }
+
+    // 4. Legacy trips sync
+    if (dbLegacy.size > 0) {
+      for (const [k, v] of dbLegacy) {
+        savedTripsMap.set(k, v);
+      }
+    } else if (savedTripsMap.size > 0) {
+      for (const [k, v] of savedTripsMap) {
+        await saveLegacyTripToDb(k, v);
+      }
+    }
+
+    console.log('[RouteWise DB] PostgreSQL bootstrap and synchronization completed successfully.');
+  } catch (err: any) {
+    console.warn('[RouteWise DB] PostgreSQL bootstrap notice (continuing with JSON fallback):', err.message);
+  }
+}
+
+// Start database bootstrap asynchronously on module load
+bootstrapDatabase().catch(e => console.warn('[RouteWise DB] Bootstrap notice:', e.message));
+
 /**
  * Resolves the authenticated user or identifier from request token, body, or query
  */
@@ -549,6 +646,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
       };
       usersMap.set(payload.uid, restoredUser);
       persistUsers(usersMap);
+      saveUserToDb(restoredUser).catch(() => {});
       user = restoredUser;
       console.log(`[RouteWise DB] Restored valid authenticated session for ${payload.email} (${payload.uid})`);
     }
@@ -586,20 +684,28 @@ app.get('/', (_req: Request, res: Response) => {
 });
 
 // Comprehensive Health check endpoint with storage persistence status
-app.get('/api/health', (_req: Request, res: Response) => {
+app.get('/api/health', async (_req: Request, res: Response) => {
+  const dbConnected = await isDatabaseConnected();
   res.json({
     status: 'ok',
     project: 'Smart Travel Planner (RouteWise)',
     usersCount: usersMap.size,
     tripCollectionsCount: tripCollectionsMap.size,
     sharedTripsCount: sharedTripsMap.size,
+    database: {
+      provider: process.env.DATABASE_URL ? 'PostgreSQL (Supabase/Persistent)' : 'Local JSON Document Store',
+      configured: Boolean(process.env.DATABASE_URL),
+      connected: dbConnected,
+    },
     googleOAuth: {
       enabled: Boolean(process.env.GOOGLE_CLIENT_ID),
       clientIdConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
       clientSecretConfigured: Boolean(process.env.GOOGLE_CLIENT_SECRET),
     },
     persistence: {
-      storageEngine: 'Multi-Tier JSON Document Store with Seed Baseline & Rolling Snapshots',
+      storageEngine: process.env.DATABASE_URL
+        ? 'Persistent PostgreSQL Database (Supabase) + Local Rolling Snapshots'
+        : 'Multi-Tier JSON Document Store with Seed Baseline & Rolling Snapshots',
       dataDirectory: DATA_DIR,
       persistentDiskConfigured: Boolean(process.env.DATA_DIR),
       backupDirectory: BACKUP_DIR,
@@ -865,6 +971,7 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 
     usersMap.set(uid, newUser);
     persistUsers(usersMap);
+    saveUserToDb(newUser).catch(err => console.warn('[RouteWise DB] User save error:', err.message));
 
     const token = generateToken(newUser);
 
@@ -1056,6 +1163,7 @@ app.post('/api/auth/google', async (req: Request, res: Response) => {
     }
 
     persistUsers(usersMap);
+    saveUserToDb(user).catch(err => console.warn('[RouteWise DB] User save error:', err.message));
     const token = generateToken(user);
 
     return res.status(isNewUser ? 201 : 200).json({
@@ -1148,6 +1256,7 @@ app.get('/api/auth/google/callback', async (req: Request, res: Response) => {
     }
 
     persistUsers(usersMap);
+    saveUserToDb(user).catch(err => console.warn('[RouteWise DB] User save error:', err.message));
     const token = generateToken(user);
 
     return res.redirect(`${frontendUrl}/login?googleToken=${encodeURIComponent(token)}`);
@@ -1222,6 +1331,7 @@ app.post('/api/trips', (req: Request, res: Response) => {
   const userKey = (tripData.userId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   savedTripsMap.set(userKey, tripData);
   persistTrips(savedTripsMap);
+  saveLegacyTripToDb(userKey, tripData).catch(() => {});
   res.status(201).json({
     message: 'Trip saved successfully',
     tripId: tripData.id || ('trip_' + Date.now()),
@@ -1246,6 +1356,7 @@ app.delete('/api/trips/:userId', (req: Request, res: Response) => {
   const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   savedTripsMap.delete(userKey);
   persistTrips(savedTripsMap);
+  deleteLegacyTripFromDb(userKey).catch(() => {});
   res.json({ success: true, message: 'Trip deleted successfully' });
 });
 
@@ -1304,6 +1415,7 @@ app.get('/api/user-trips', (req: Request, res: Response) => {
         };
         tripCollectionsMap.set(migratedTrip.id, migratedTrip);
         persistTripCollections(tripCollectionsMap);
+        saveTripCollectionToDb(migratedTrip).catch(() => {});
         userTrips.push(migratedTrip);
       }
     }
@@ -1358,6 +1470,7 @@ app.post('/api/user-trips', (req: Request, res: Response) => {
 
     tripCollectionsMap.set(tripId, newTrip);
     persistTripCollections(tripCollectionsMap);
+    saveTripCollectionToDb(newTrip).catch(() => {});
 
     return res.status(201).json({
       success: true,
@@ -1427,6 +1540,7 @@ app.put('/api/user-trips/:tripId', (req: Request, res: Response) => {
     trip.updatedAt = new Date().toISOString();
     tripCollectionsMap.set(trip.id, trip);
     persistTripCollections(tripCollectionsMap);
+    saveTripCollectionToDb(trip).catch(() => {});
 
     return res.json({
       success: true,
@@ -1451,6 +1565,7 @@ app.delete('/api/user-trips/:tripId', (req: Request, res: Response) => {
 
     tripCollectionsMap.delete(tripId);
     persistTripCollections(tripCollectionsMap);
+    deleteTripCollectionFromDb(tripId).catch(() => {});
 
     return res.json({
       success: true,
@@ -1574,6 +1689,7 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
 
     sharedTripsMap.set(shareId, newRecord);
     persistSharedTrips(sharedTripsMap);
+    saveSharedTripToDb(newRecord).catch(() => {});
 
     return res.status(201).json({
       success: true,
@@ -1668,6 +1784,7 @@ app.post('/api/trips/import', (req: Request, res: Response) => {
         };
         tripCollectionsMap.set(importedId, newTrip);
         importedList.push(newTrip);
+        saveTripCollectionToDb(newTrip).catch(() => {});
       }
       persistTripCollections(tripCollectionsMap);
       return res.status(201).json({
@@ -1699,6 +1816,7 @@ app.post('/api/trips/import', (req: Request, res: Response) => {
 
     tripCollectionsMap.set(importedId, importedTrip);
     persistTripCollections(tripCollectionsMap);
+    saveTripCollectionToDb(importedTrip).catch(() => {});
 
     return res.status(201).json({
       success: true,
