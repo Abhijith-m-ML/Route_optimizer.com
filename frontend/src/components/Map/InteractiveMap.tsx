@@ -11,7 +11,10 @@ import {
   RefreshCw,
   MapPin,
   Maximize2,
-  Navigation
+  Navigation,
+  X,
+  Trash2,
+  Clock
 } from 'lucide-react';
 import { 
   loadGoogleMaps, 
@@ -115,6 +118,21 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [currentTheme, setCurrentTheme] = useState<MapThemeType>('dark');
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
+  const [mobileSelectedStop, setMobileSelectedStop] = useState<{ stop: SelectedStop; index: number } | null>(null);
+
+  // Synchronize mobileSelectedStop with activeStopId and stops
+  useEffect(() => {
+    if (!activeStopId || stops.length === 0) {
+      setMobileSelectedStop(null);
+      return;
+    }
+    const idx = stops.findIndex((s) => s.id === activeStopId);
+    if (idx !== -1 && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setMobileSelectedStop({ stop: stops[idx], index: idx });
+    } else if (idx === -1) {
+      setMobileSelectedStop(null);
+    }
+  }, [activeStopId, stops]);
 
   // Initialize and render real Google Map
   const initMap = useCallback(async () => {
@@ -154,6 +172,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       });
 
       mapInstanceRef.current = map;
+
+      // Close popups on general map click
+      map.addListener('click', () => {
+        infoWindowRef.current?.close();
+        setMobileSelectedStop(null);
+      });
 
       // Initialize single reusable InfoWindow
       infoWindowRef.current = new window.google.maps.InfoWindow({
@@ -419,7 +443,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         const currentMarker = marker;
         currentMarker.addListener('click', () => {
           onSelectStop?.(stop.id);
-          openInfoWindowForStop(stop, currentMarker, index);
+          if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            infoWindowRef.current?.close();
+            setMobileSelectedStop({ stop, index });
+            map.panTo(stop.coordinates);
+          } else {
+            openInfoWindowForStop(stop, currentMarker, index);
+          }
         });
 
         markersMapRef.current.set(stop.id, currentMarker);
@@ -430,9 +460,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         marker.setZIndex(isSelected ? 9999 : index + 100);
       }
 
-      // If this marker is selected, open InfoWindow
+      // If this marker is selected, open InfoWindow on desktop or Mobile card on mobile
       if (isSelected && marker) {
-        openInfoWindowForStop(stop, marker, index);
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+          infoWindowRef.current?.close();
+          setMobileSelectedStop({ stop, index });
+        } else {
+          openInfoWindowForStop(stop, marker, index);
+        }
       }
     });
 
@@ -450,11 +485,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       }
       const latestMarker = markersMapRef.current.get(latestStop.id);
       if (latestMarker) {
-        openInfoWindowForStop(latestStop, latestMarker, stops.length - 1);
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+          infoWindowRef.current?.close();
+          setMobileSelectedStop({ stop: latestStop, index: stops.length - 1 });
+        } else {
+          openInfoWindowForStop(latestStop, latestMarker, stops.length - 1);
+        }
       }
     } else if (currentCount === 0 && prevCount > 0) {
       // Itinerary cleared: close InfoWindow and reset to Mumbai center
       infoWindowRef.current?.close();
+      setMobileSelectedStop(null);
       map.panTo(MUMBAI_CENTER);
       map.setZoom(DEFAULT_ZOOM);
     }
@@ -690,7 +731,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             {/* Zoom In */}
             <button
               onClick={handleZoomIn}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition"
               title="Zoom In"
               aria-label="Zoom in"
             >
@@ -700,7 +741,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             {/* Zoom Out */}
             <button
               onClick={handleZoomOut}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 transition"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition"
               title="Zoom Out"
               aria-label="Zoom out"
             >
@@ -713,7 +754,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             {stops.length > 0 && (
               <button
                 onClick={handleFitAllDestinations}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-indigo-400 hover:text-white hover:bg-indigo-600 transition"
+                className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-indigo-400 hover:text-white hover:bg-indigo-600 active:bg-indigo-700 transition"
                 title={`Fit All ${stops.length} Destinations`}
                 aria-label="Fit all destinations"
               >
@@ -724,7 +765,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             {/* Re-centre on Mumbai */}
             <button
               onClick={handleRecenter}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-cyan-400 hover:bg-slate-800 transition"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-cyan-400 hover:bg-slate-800 active:bg-slate-700 transition"
               title="Re-centre on Mumbai (19.0760, 72.8777)"
               aria-label="Re-centre on Mumbai"
             >
@@ -735,10 +776,10 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <div className="relative">
               <button
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition ${
+                className={`w-9 h-9 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition ${
                   showThemeMenu 
                     ? 'text-cyan-400 bg-slate-800' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700'
                 }`}
                 title="Change Map View Type"
                 aria-label="Toggle map layer style"
@@ -784,9 +825,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </div>
           </div>
 
-          {/* Bottom Floating "Fit All Stops" Bar when multiple destinations exist */}
+          {/* Desktop Floating "Fit All Stops" Bar when multiple destinations exist */}
           {stops.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
+            <div className="hidden lg:flex absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-auto">
               <button
                 onClick={handleFitAllDestinations}
                 className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-900/90 hover:bg-slate-850 backdrop-blur-md text-[11px] sm:text-xs font-semibold text-slate-200 hover:text-white border border-slate-700/80 shadow-2xl transition hover:scale-[1.02] whitespace-nowrap"
@@ -794,6 +835,108 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <Navigation className="w-3.5 h-3.5 text-indigo-400" />
                 <span>Fit All {stops.length} Destinations</span>
               </button>
+            </div>
+          )}
+
+          {/* Mobile-Optimized Destination Detail Card (Docked above bottom sheet) */}
+          {mobileSelectedStop && (
+            <div 
+              data-testid="mobile-destination-card"
+              className="lg:hidden absolute bottom-[84px] left-3 right-3 sm:bottom-24 sm:left-4 sm:right-auto sm:max-w-md z-30 pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full text-white flex-shrink-0 ${
+                    mobileSelectedStop.index === 0
+                      ? 'bg-emerald-600'
+                      : mobileSelectedStop.index === stops.length - 1 && stops.length > 1
+                      ? 'bg-rose-600'
+                      : 'bg-indigo-600'
+                  }`}>
+                    {mobileSelectedStop.index === 0
+                      ? 'Stop 1 (Start)'
+                      : mobileSelectedStop.index === stops.length - 1 && stops.length > 1
+                      ? `Stop ${mobileSelectedStop.index + 1} (End)`
+                      : `Stop ${mobileSelectedStop.index + 1}`}
+                  </span>
+                  <h4 className="font-bold text-sm text-white truncate">
+                    {mobileSelectedStop.stop.name}
+                  </h4>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileSelectedStop(null)}
+                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 active:bg-slate-700 transition flex-shrink-0"
+                  aria-label="Close destination details"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="mt-1 flex items-center gap-2 text-xs text-slate-300">
+                {mobileSelectedStop.stop.city && (
+                  <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                    <MapPin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                    <span className="truncate">
+                      {mobileSelectedStop.stop.city}
+                      {mobileSelectedStop.stop.state ? `, ${mobileSelectedStop.stop.state}` : ''}
+                    </span>
+                  </span>
+                )}
+                <span className="text-slate-600">•</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+                  {mobileSelectedStop.stop.category || 'Landmark'}
+                </span>
+                <span className="text-slate-600">•</span>
+                <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                  <Clock className="w-2.5 h-2.5 text-cyan-400" />
+                  {mobileSelectedStop.stop.customDurationMinutes || mobileSelectedStop.stop.typicalVisitDurationMinutes || 60}m
+                </span>
+              </div>
+
+              {mobileSelectedStop.stop.shortAddress && (
+                <p className="text-[11px] text-slate-400 truncate mt-1">
+                  {mobileSelectedStop.stop.shortAddress}
+                </p>
+              )}
+
+              {/* Actions: Remove Stop & Google Maps Navigation */}
+              <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onRemoveStop?.(mobileSelectedStop.stop.id);
+                    setMobileSelectedStop(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition min-h-[44px]"
+                  data-testid="remove-stop-btn"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove Stop</span>
+                </button>
+
+                <a
+                  href={getGoogleMapsDirectionsUrl(
+                    mobileSelectedStop.stop.coordinates.lat,
+                    mobileSelectedStop.stop.coordinates.lng
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 active:bg-slate-200 transition shadow-md min-h-[44px]"
+                  data-testid="gmaps-nav-button"
+                  aria-label="Navigate with Google Maps"
+                  title="Navigate with Google Maps"
+                >
+                  <img
+                    src={googleMapsPinIcon || '/google-maps-pin.png'}
+                    alt="Google Maps"
+                    className="w-4 h-4 object-contain"
+                  />
+                  <span>Directions</span>
+                  <ExternalLink className="w-3 h-3 text-slate-500" />
+                </a>
+              </div>
             </div>
           )}
         </>

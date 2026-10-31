@@ -34,7 +34,7 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         <button
           onClick={handleOptimizeClick}
           disabled={isDisabled || isCalculating}
-          className={`relative group flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs md:text-sm tracking-wide shadow-lg transition-all duration-300 ${
+          className={`relative group flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-xs sm:text-sm tracking-wide shadow-lg transition-all duration-300 min-h-[44px] ${
             isDisabled
               ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
               : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 bg-[length:200%_auto] hover:bg-right text-white shadow-indigo-600/30 hover:shadow-indigo-600/50 active:scale-[0.98] border border-indigo-400/30'
@@ -57,8 +57,9 @@ export const RouteOptimizer: React.FC<RouteOptimizerProps> = ({
         <button
           onClick={onReverseRoute}
           disabled={isDisabled}
-          className="p-3 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-11 h-11 flex items-center justify-center bg-slate-800/90 hover:bg-slate-700 active:bg-slate-600 text-slate-300 hover:text-white rounded-xl border border-slate-700/80 transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           title="Reverse route direction (North to South / South to North)"
+          aria-label="Reverse route stops direction"
         >
           <ArrowUpDown className="w-4 h-4" />
         </button>

@@ -16,6 +16,7 @@ import {
 } from '../services/tripService';
 import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
 import { ResetRouteModal } from '../components/ResetRouteModal';
+import { MobileBottomSheet } from '../components/Sidebar/MobileBottomSheet';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -475,6 +476,28 @@ export const DashboardPage: React.FC = () => {
             activeStopId={activeStopId}
             onSelectStop={(id) => setActiveStopId(id)}
             onRemoveStop={handleRemoveStop}
+          />
+
+          {/* Mobile Collapsible Bottom Sheet (Google Maps Style) */}
+          <MobileBottomSheet
+            tripTitle={tripTitle}
+            onUpdateTitle={setTripTitle}
+            stops={stops}
+            metrics={metrics}
+            travelMode={travelMode}
+            isOptimized={isOptimized}
+            activeStopId={activeStopId}
+            onAddStop={handleAddStop}
+            onSelectStop={(id) => setActiveStopId(id)}
+            onMoveUp={handleMoveUp}
+            onMoveDown={handleMoveDown}
+            onRemoveStop={handleRemoveStop}
+            onUpdateDuration={handleUpdateDuration}
+            onClearAll={handleClearAll}
+            onOptimizeRoute={handleOptimizeRoute}
+            onReverseRoute={handleReverseRoute}
+            selectedState={selectedState}
+            onSelectState={setSelectedState}
           />
         </div>
       </main>

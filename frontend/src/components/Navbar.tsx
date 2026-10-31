@@ -73,11 +73,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-2.5 sm:px-4 md:px-6 flex items-center justify-between sticky top-0 z-40 transition-colors">
+      <header className="h-14 sm:h-16 pt-safe bg-slate-900/95 backdrop-blur-md border-b border-slate-800/80 px-2.5 sm:px-4 md:px-6 flex items-center justify-between sticky top-0 z-40 transition-colors flex-shrink-0">
         {/* Left: Brand & Trip Title */}
         <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-5 min-w-0 flex-shrink-0">
-          <Link to="/dashboard" className="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0 group cursor-pointer">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 p-0.5 shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-all duration-300 flex-shrink-0">
+          <Link to="/dashboard" className="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0 group cursor-pointer" aria-label="RouteWise Dashboard">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 p-0.5 shadow-lg shadow-indigo-500/20 group-hover:shadow-indigo-500/40 transition-all duration-300 flex-shrink-0">
               <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
                 <Compass className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-[spin_20s_linear_infinite]" />
               </div>
@@ -143,16 +143,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Share Destinations Button (Opens State-Based Share Dialog) */}
           <button
             onClick={handleOpenShare}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 transition shadow-sm"
+            className="flex items-center justify-center gap-1.5 h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 active:bg-slate-700 border border-slate-700/70 transition shadow-sm"
             title="Share destinations by state"
+            aria-label="Share destinations"
           >
             <Share2 className="w-3.5 h-3.5 text-indigo-400" />
             <span className="hidden sm:inline">Share</span>
           </button>
 
+          {/* Reset Route Button */}
           <button
             onClick={onResetTrip}
-            className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/70 border border-transparent hover:border-slate-700/60 transition flex items-center justify-center"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-slate-400 hover:text-rose-400 active:text-rose-300 bg-slate-800/60 hover:bg-slate-700/80 active:bg-slate-700 border border-slate-700/60 transition flex items-center justify-center flex-shrink-0"
             title="Reset current route"
             aria-label="Reset route"
           >
@@ -163,7 +165,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onSaveTrip}
             disabled={isSaving}
-            className="flex items-center space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white px-2.5 sm:px-3.5 md:px-4 py-1.5 sm:py-2 rounded-xl text-xs md:text-sm font-semibold shadow-md sm:shadow-lg shadow-indigo-600/25 transition-all duration-200 border border-indigo-400/20 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+            className="flex items-center justify-center space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white h-9 sm:h-10 px-2.5 sm:px-3.5 md:px-4 rounded-xl text-xs md:text-sm font-semibold shadow-md sm:shadow-lg shadow-indigo-600/25 transition-all duration-200 border border-indigo-400/20 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
           >
             {isSaving ? (
               <>
@@ -181,20 +183,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* User Account / Profile Button */}
           {user ? (
-            <div className="relative">
+            <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-800/70 border border-transparent hover:border-slate-700/60 transition group"
+                className="flex items-center space-x-2 h-9 sm:h-10 p-1 sm:px-2 rounded-xl hover:bg-slate-800/70 active:bg-slate-700 border border-transparent hover:border-slate-700/60 transition group"
                 title={`Logged in as ${user.email || userDisplayName}`}
+                aria-label="User profile menu"
               >
                 {user.photoURL ? (
                   <img
                     src={user.photoURL}
                     alt={userDisplayName}
-                    className="w-8 h-8 rounded-lg object-cover border border-indigo-500/40"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover border border-indigo-500/40"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center font-bold text-xs text-white shadow-sm shadow-indigo-500/20">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center font-bold text-xs text-white shadow-sm shadow-indigo-500/20">
                     {userInitials}
                   </div>
                 )}

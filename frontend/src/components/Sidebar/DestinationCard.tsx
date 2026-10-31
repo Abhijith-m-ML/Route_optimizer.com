@@ -82,7 +82,7 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
           <img
             src={stop.photoUrl}
             alt={stop.name}
-            className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-slate-700/80 shadow"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover flex-shrink-0 border border-slate-700/80 shadow"
             onError={(e) => {
               (e.target as HTMLImageElement).src =
                 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80';
@@ -92,7 +92,7 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
           {/* Place Details */}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-1.5">
-              <h4 className="font-bold text-xs md:text-sm text-white truncate leading-tight group-hover:text-indigo-300 transition">
+              <h4 className="font-bold text-xs sm:text-sm text-white truncate leading-tight group-hover:text-indigo-300 transition">
                 {stop.name}
               </h4>
               <button
@@ -100,10 +100,11 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
                   e.stopPropagation();
                   onRemove();
                 }}
-                className="text-slate-500 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-800 transition"
+                className="text-slate-400 hover:text-rose-400 active:text-rose-300 w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-800/80 active:bg-slate-800 transition flex-shrink-0"
                 title="Remove stop"
+                aria-label={`Remove ${stop.name}`}
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
               </button>
             </div>
 
@@ -150,7 +151,8 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
                     onUpdateDuration(Number(e.target.value));
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-slate-800 text-slate-200 text-[11px] rounded px-1.5 py-0.5 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  className="bg-slate-800 text-slate-200 text-xs sm:text-[11px] rounded-lg px-2 py-1 sm:py-0.5 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer min-h-[32px] sm:min-h-0"
+                  aria-label="Visit duration"
                 >
                   <option value={30}>30 min</option>
                   <option value={45}>45 min</option>
@@ -162,22 +164,24 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
               </div>
 
               {/* Up/Down buttons */}
-              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   onClick={onMoveUp}
                   disabled={isFirst}
-                  className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg bg-slate-800/80 hover:bg-slate-700 active:bg-slate-600 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed transition"
                   title="Move stop earlier"
+                  aria-label="Move stop earlier"
                 >
-                  <ChevronUp className="w-3.5 h-3.5" />
+                  <ChevronUp className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
                 <button
                   onClick={onMoveDown}
                   disabled={isLast}
-                  className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg bg-slate-800/80 hover:bg-slate-700 active:bg-slate-600 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed transition"
                   title="Move stop later"
+                  aria-label="Move stop later"
                 >
-                  <ChevronDown className="w-3.5 h-3.5" />
+                  <ChevronDown className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
             </div>

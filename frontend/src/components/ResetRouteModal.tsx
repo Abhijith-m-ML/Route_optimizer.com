@@ -46,7 +46,7 @@ export const ResetRouteModal: React.FC<ResetRouteModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto"
       onClick={(e) => {
         if (!isProcessing && e.target === e.currentTarget) {
           onCancel();
@@ -60,7 +60,7 @@ export const ResetRouteModal: React.FC<ResetRouteModalProps> = ({
         aria-modal="true"
         aria-labelledby="reset-modal-title"
         aria-describedby="reset-modal-description"
-        className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-5 sm:p-6 text-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95 fade-in duration-150"
+        className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col max-h-[90dvh] overflow-y-auto animate-in zoom-in-95 fade-in duration-150 my-auto"
       >
         {/* Modal Header */}
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-800">
