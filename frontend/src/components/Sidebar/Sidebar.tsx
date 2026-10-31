@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { StateSelector } from './StateSelector';
 import { SearchBox } from './SearchBox';
 import { RouteOptimizer } from './RouteOptimizer';
 import { DestinationList } from './DestinationList';
@@ -44,13 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearAll,
   onOptimizeRoute,
   onReverseRoute,
-  selectedState: externalSelectedState,
-  onSelectState: externalOnSelectState,
+  selectedState = 'All States',
 }) => {
   const selectedIds = stops.map((s) => s.id);
-  const [internalSelectedState, setInternalSelectedState] = useState('All States');
-  const selectedState = externalSelectedState !== undefined ? externalSelectedState : internalSelectedState;
-  const setSelectedState = externalOnSelectState || setInternalSelectedState;
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState(tripTitle || '');
@@ -120,29 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* 1. State Selector Dropdown Above Search Bar */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-              Select State
-            </label>
-            {selectedState !== 'All States' && (
-              <button
-                type="button"
-                onClick={() => setSelectedState('All States')}
-                className="text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 transition"
-              >
-                Reset to All
-              </button>
-            )}
-          </div>
-          <StateSelector
-            selectedState={selectedState}
-            onSelectState={setSelectedState}
-          />
-        </div>
-
-        {/* 2. Destination Search Bar */}
+        {/* Destination Search Bar */}
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
             Find & Add Destinations
@@ -155,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
         </div>
 
-        {/* 3. Route Optimizer Button */}
+        {/* Route Optimizer Button */}
         <RouteOptimizer
           onOptimize={onOptimizeRoute}
           onReverseRoute={onReverseRoute}
@@ -163,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOptimized={isOptimized}
         />
 
-        {/* 4. Selected Destinations List (Organized by State) */}
+        {/* Selected Destinations List (Organized by State) */}
         <DestinationList
           stops={stops}
           activeStopId={activeStopId}
@@ -182,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Info className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold text-slate-200">Travel Insight: </span>
-            Select a state above to prioritize local destinations or search nationwide. Group your saved places by state or optimize the sequence for the fastest travel route.
+            Add your destinations or use your current location as a starting point. Click &quot;Optimize Route&quot; to reorder stops for the most efficient travel time and distance.
           </div>
         </div>
       </div>
