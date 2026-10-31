@@ -7,8 +7,6 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { MPCPage } from './pages/MPCPage';
-import { IPFPage } from './pages/IPFPage';
 
 export const App: React.FC = () => {
   return (
@@ -47,26 +45,6 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Dedicated MPC Distance Calculator Route */}
-          <Route
-            path="/mpc"
-            element={
-              <ProtectedRoute>
-                <MPCPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Dedicated IPF Instagram Place Finder Route */}
-          <Route
-            path="/ipf"
-            element={
-              <ProtectedRoute>
-                <IPFPage />
               </ProtectedRoute>
             }
           />

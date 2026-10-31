@@ -14,8 +14,6 @@ import {
   getSavedTripFromCloud,
   decodeTripFromUrl
 } from '../services/tripService';
-import { MPCModal } from '../components/MPC/MPCModal';
-import { IPFModal } from '../components/IPF/IPFModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -34,9 +32,6 @@ export const DashboardPage: React.FC = () => {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => savedTrip?.lastSavedAt || null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  // Modal visibility states for tools
-  const [isMPCOpen, setIsMPCOpen] = useState(false);
-  const [isIPFOpen, setIsIPFOpen] = useState(false);
 
   // Sync if saved trip is updated, shared via URL, or loaded from cloud
   useEffect(() => {
@@ -308,8 +303,6 @@ export const DashboardPage: React.FC = () => {
         onSaveTrip={handleSaveTrip}
         onResetTrip={handleResetTrip}
         stopsCount={stops.length}
-        onOpenMPC={() => setIsMPCOpen(true)}
-        onOpenIPF={() => setIsIPFOpen(true)}
         travelMode={travelMode}
         stops={stops}
       />
@@ -394,20 +387,6 @@ export const DashboardPage: React.FC = () => {
       {/* Notification Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* MPC Multi-Place Distance Calculator Modal */}
-      <MPCModal
-        isOpen={isMPCOpen}
-        onClose={() => setIsMPCOpen(false)}
-        onAddStopToTrip={handleAddStop}
-        initialStops={stops}
-      />
-
-      {/* IPF Instagram Place Finder Modal */}
-      <IPFModal
-        isOpen={isIPFOpen}
-        onClose={() => setIsIPFOpen(false)}
-        onAddStopToTrip={handleAddStop}
-      />
     </div>
   );
 };

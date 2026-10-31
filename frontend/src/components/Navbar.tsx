@@ -7,8 +7,7 @@ import {
   Share2, 
   RotateCcw,
   LogOut,
-  User as UserIcon,
-  Sparkles
+  User as UserIcon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,8 +22,6 @@ interface NavbarProps {
   onSaveTrip: () => void;
   onResetTrip: () => void;
   stopsCount: number;
-  onOpenMPC: () => void;
-  onOpenIPF: () => void;
   travelMode?: TravelMode;
   stops?: SelectedStop[];
 }
@@ -37,8 +34,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSaveTrip,
   onResetTrip,
   stopsCount,
-  onOpenMPC,
-  onOpenIPF,
   travelMode,
   stops,
 }) => {
@@ -144,41 +139,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           )}
         </div>
-      </div>
-
-      {/* Center: Tools (MPC & IPF) */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3 flex-shrink-0">
-        {/* MPC Button */}
-        <button
-          type="button"
-          onClick={onOpenMPC}
-          className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-cyan-600 via-indigo-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-[0.98] text-white px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-extrabold shadow-md sm:shadow-lg shadow-indigo-600/25 border border-cyan-400/40 transition-all duration-200 group flex-shrink-0"
-          title="Open Multi Place Distance Calculator (MPC)"
-        >
-          <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-md sm:rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-            <Compass className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white group-hover:rotate-45 transition-transform duration-300" />
-          </div>
-          <span className="tracking-wide">MPC</span>
-          <span className="text-[11px] text-cyan-200 font-semibold hidden xl:inline">
-            • Distance Calculator
-          </span>
-        </button>
-
-        {/* IPF (Instagram Place Finder) Button */}
-        <button
-          type="button"
-          onClick={onOpenIPF}
-          className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 hover:from-teal-300 hover:to-cyan-300 active:scale-[0.98] text-slate-950 px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black shadow-md sm:shadow-lg shadow-teal-500/25 border border-teal-300/60 transition-all duration-200 group flex-shrink-0"
-          title="Open IPF - Instagram Place Finder"
-        >
-          <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-md sm:rounded-lg bg-slate-950/20 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-950 group-hover:scale-110 transition-transform duration-300" />
-          </div>
-          <span className="tracking-wide font-black">IPF</span>
-          <span className="text-[11px] text-slate-950 font-bold hidden md:inline">
-            • Instagram Place Finder
-          </span>
-        </button>
       </div>
 
       {/* Right: Actions & User Profile */}

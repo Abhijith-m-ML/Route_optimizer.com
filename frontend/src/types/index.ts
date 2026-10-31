@@ -67,25 +67,3 @@ export interface TripState {
   isSaving: boolean;
   lastSavedAt: string | null;
 }
-
-export interface MPCLocation {
-  id: string;
-  name: string;
-  address?: string;
-  coordinates: LatLng;
-  label?: string; // e.g. 'A', 'B', 'C', 'D'
-  placeId?: string;
-  category?: PlaceCategory;
-}
-
-export interface MPCDistanceResult {
-  destination: MPCLocation;
-  label: string;
-  roadDistanceKm: number;
-  straightDistanceKm: number;
-  estimatedMinutes: number;
-  rank: number;
-  isClosest: boolean;
-  differenceFromClosestKm: number;
-}
-
