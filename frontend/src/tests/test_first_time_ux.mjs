@@ -125,8 +125,8 @@ assert(
   'Trip Plan view renders WelcomeCard welcoming first-time users when 0 destinations are selected'
 );
 assert(
-  dashboardCode.includes('<MobileBottomSheet') && dashboardCode.includes('onOpenTripPlan'),
-  'Interactive Map renders compact route summary with seamless Trip Plan navigation'
+  dashboardCode.includes("mobileView === 'map' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'"),
+  'Interactive Map renders full viewport height without bottom clutter'
 );
 
 console.log('===========================================================');

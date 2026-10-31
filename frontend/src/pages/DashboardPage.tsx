@@ -17,7 +17,6 @@ import {
 import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
 import { ShareDialog } from '../components/ShareDialog';
 import { ResetRouteModal } from '../components/ResetRouteModal';
-import { MobileBottomSheet } from '../components/Sidebar/MobileBottomSheet';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
@@ -512,15 +511,6 @@ export const DashboardPage: React.FC = () => {
             activeStopId={activeStopId}
             onSelectStop={(id) => setActiveStopId(id)}
             onRemoveStop={handleRemoveStop}
-          />
-
-          {/* Compact Route Summary Bar (at bottom of Map on mobile) */}
-          <MobileBottomSheet
-            stops={stops}
-            metrics={metrics}
-            isOptimized={isOptimized}
-            onOptimizeRoute={handleOptimizeRoute}
-            onOpenTripPlan={() => setMobileView('sidebar')}
           />
         </div>
       </main>

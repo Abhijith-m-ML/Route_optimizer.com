@@ -130,8 +130,8 @@ assert(
   'Trip Plan tab dynamically reflects updated selected destination count'
 );
 assert(
-  dashboardCode.includes('onOpenTripPlan={() => setMobileView(\'sidebar\')}'),
-  'Tapping View Trip Plan in map summary smoothly transitions to Trip Plan tab'
+  dashboardCode.includes("setMobileView('sidebar')"),
+  'Trip Plan tab switching smoothly transitions to Trip Plan view'
 );
 assert(
   dashboardCode.includes('setMobileView(\'map\')'),

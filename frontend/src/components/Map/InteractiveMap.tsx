@@ -834,11 +834,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </div>
           )}
 
-          {/* Mobile-Optimized Destination Detail Card (Docked above bottom sheet) */}
+          {/* Mobile-Optimized Destination Detail Card (Docked cleanly at bottom of map) */}
           {mobileSelectedStop && (
             <div 
               data-testid="mobile-destination-card"
-              className="lg:hidden absolute bottom-[84px] left-3 right-3 sm:bottom-24 sm:left-4 sm:right-auto sm:max-w-md z-30 pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150"
+              className="lg:hidden absolute bottom-4 sm:bottom-6 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-md z-30 pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0 flex-1">

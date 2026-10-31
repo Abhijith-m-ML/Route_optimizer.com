@@ -101,8 +101,8 @@ assert(
   'Mobile card provides accessible Google Maps Navigation and Remove Stop actions'
 );
 assert(
-  mapCode.includes('absolute bottom-[84px]') || mapCode.includes('bottom-[84px] left-3 right-3'),
-  'Mobile card is docked comfortably above collapsed bottom sheet without obscuring map controls'
+  mapCode.includes('bottom-4') || mapCode.includes('bottom-[84px]'),
+  'Mobile card is docked comfortably without obscuring map controls'
 );
 assert(
   mapCode.includes('onSelectStop') && mapCode.includes('setMobileSelectedStop'),
