@@ -356,5 +356,704 @@
     "isOptimized": false,
     "createdAt": "2026-10-31T19:56:12.980Z",
     "updatedAt": "2026-10-31T19:56:12.980Z"
+  },
+  "trip_1793478947119_zbcaf": {
+    "id": "trip_1793478947119_zbcaf",
+    "userId": "usr_1793478947033_5rclo",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Updated route",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793478947119",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793478947119",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:35:47.119Z",
+    "updatedAt": "2026-10-31T20:35:47.129Z"
+  },
+  "trip_1793478947123_n2g7g": {
+    "id": "trip_1793478947123_n2g7g",
+    "userId": "usr_1793478947079_icwhk",
+    "name": "Mumbai Trip",
+    "description": "User B Mumbai exploration",
+    "travelMode": "DRIVING",
+    "stops": [],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:35:47.123Z",
+    "updatedAt": "2026-10-31T20:35:47.123Z"
+  },
+  "trip_1793478947135_gcnzj": {
+    "id": "trip_1793478947135_gcnzj",
+    "userId": "usr_1793478947079_icwhk",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793478947119",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793478947119",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:35:47.135Z",
+    "updatedAt": "2026-10-31T20:35:47.135Z"
+  },
+  "trip_1793478947137_7j8am": {
+    "id": "trip_1793478947137_7j8am",
+    "userId": "usr_1793478947079_icwhk",
+    "name": "Mumbai & Goa Adventure (2)",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793478947119",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793478947119",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:35:47.137Z",
+    "updatedAt": "2026-10-31T20:35:47.137Z"
+  },
+  "trip_1793479214563_07z6a": {
+    "id": "trip_1793479214563_07z6a",
+    "userId": "usr_1793479214459_8y4mc",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Updated route",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479214563",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479214563",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:40:14.563Z",
+    "updatedAt": "2026-10-31T20:40:14.576Z"
+  },
+  "trip_1793479214568_ckshw": {
+    "id": "trip_1793479214568_ckshw",
+    "userId": "usr_1793479214514_3qi2j",
+    "name": "Mumbai Trip",
+    "description": "User B Mumbai exploration",
+    "travelMode": "DRIVING",
+    "stops": [],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:40:14.568Z",
+    "updatedAt": "2026-10-31T20:40:14.568Z"
+  },
+  "trip_1793479214583_a8rfw": {
+    "id": "trip_1793479214583_a8rfw",
+    "userId": "usr_1793479214514_3qi2j",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479214563",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479214563",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:40:14.583Z",
+    "updatedAt": "2026-10-31T20:40:14.583Z"
+  },
+  "trip_1793479214586_ybd7b": {
+    "id": "trip_1793479214586_ybd7b",
+    "userId": "usr_1793479214514_3qi2j",
+    "name": "Mumbai & Goa Adventure (2)",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479214563",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479214563",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:40:14.586Z",
+    "updatedAt": "2026-10-31T20:40:14.586Z"
+  },
+  "trip_1793479261709_dam41": {
+    "id": "trip_1793479261709_dam41",
+    "userId": "usr_1793479261565_s5ejw",
+    "name": "Persistent Test Trip",
+    "description": "Testing survival across server restarts",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479261709",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479261709",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:41:01.709Z",
+    "updatedAt": "2026-10-31T20:41:01.709Z"
+  },
+  "trip_1793479305674_rq5i2": {
+    "id": "trip_1793479305674_rq5i2",
+    "userId": "usr_1793479305565_qn180",
+    "name": "Persistent Test Trip",
+    "description": "Testing survival across server restarts",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479305674",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479305674",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:41:45.674Z",
+    "updatedAt": "2026-10-31T20:41:45.674Z"
+  },
+  "trip_1793479326935_pbbjn": {
+    "id": "trip_1793479326935_pbbjn",
+    "userId": "usr_1793479326838_mwkf3",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Updated route",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479326935",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479326935",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:42:06.935Z",
+    "updatedAt": "2026-10-31T20:42:06.961Z"
+  },
+  "trip_1793479326946_lgkkf": {
+    "id": "trip_1793479326946_lgkkf",
+    "userId": "usr_1793479326889_do4ln",
+    "name": "Mumbai Trip",
+    "description": "User B Mumbai exploration",
+    "travelMode": "DRIVING",
+    "stops": [],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:42:06.946Z",
+    "updatedAt": "2026-10-31T20:42:06.946Z"
+  },
+  "trip_1793479326977_iidoj": {
+    "id": "trip_1793479326977_iidoj",
+    "userId": "usr_1793479326889_do4ln",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479326935",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479326935",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:42:06.977Z",
+    "updatedAt": "2026-10-31T20:42:06.977Z"
+  },
+  "trip_1793479326982_yx12a": {
+    "id": "trip_1793479326982_yx12a",
+    "userId": "usr_1793479326889_do4ln",
+    "name": "Mumbai & Goa Adventure (2)",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479326935",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479326935",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:42:06.982Z",
+    "updatedAt": "2026-10-31T20:42:06.982Z"
+  },
+  "trip_1793479327567_j9u96": {
+    "id": "trip_1793479327567_j9u96",
+    "userId": "usr_1793479327464_i7p9c",
+    "name": "Persistent Test Trip",
+    "description": "Testing survival across server restarts",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793479327567",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793479327567",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-10-31T20:42:07.567Z",
+    "updatedAt": "2026-10-31T20:42:07.567Z"
   }
 }

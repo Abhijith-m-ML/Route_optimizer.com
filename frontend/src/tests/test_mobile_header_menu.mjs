@@ -96,3 +96,4 @@ console.log('  ✅ Passed: Drawer supports Escape, backdrop tap, and close butto
 console.log('\n===========================================================');
 console.log('🎉 ALL MOBILE HEADER & DRAWER TESTS PASSED (100%)!');
 console.log('===========================================================\n');
+

@@ -342,9 +342,35 @@ export async function loginWithEmail(
 }
 
 /**
- * Verify current session with the backend
+ * Verify current session with the backend.
+ * Returns:
+ * - true: Session confirmed valid by backend.
+ * - false: Session explicitly expired or invalid (safe to clear).
+ * - null: Backend cold-starting, rate-limited, or network offline (PRESERVE local session!).
  */
 export async function verifyBackendSession(token: string): Promise<boolean | null> {
+  if (!token) return false;
+
+  // Check client-side expiration first
+  try {
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const payload = JSON.parse(jsonPayload);
+      if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+        return false; // Token has expired
+      }
+    }
+  } catch {
+    return false;
+  }
+
   try {
     const res = await fetchWithBackendCandidates(
       '/api/auth/me',
@@ -353,10 +379,30 @@ export async function verifyBackendSession(token: string): Promise<boolean | nul
           Authorization: `Bearer ${token}`,
         },
       },
-      5000
+      8000
     );
-    return res.ok;
+
+    if (res.ok) {
+      return true;
+    }
+
+    // 401 Unauthorized handling
+    if (res.status === 401) {
+      try {
+        const body = await res.json();
+        if (body?.error && (body.error.includes('expired') || body.error.includes('Invalid or expired token'))) {
+          return false;
+        }
+      } catch {}
+      // Preserve session if server returned generic 401 during boot/sync
+      return null;
+    }
+
+    // 500, 502, 503, 504: server waking up on Render
+    // NEVER invalidate session while server is starting
+    return null;
   } catch {
+    // Network offline or cold-start timeout - preserve session
     return null;
   }
 }

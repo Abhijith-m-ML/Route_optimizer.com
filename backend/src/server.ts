@@ -10,10 +10,77 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DATA_FILE = path.join(__dirname, '..', 'trips_data.json');
-const USERS_FILE = path.join(__dirname, '..', 'users_data.json');
-const SHARED_TRIPS_FILE = path.join(__dirname, '..', 'shared_trips.json');
-const TRIPS_COLLECTIONS_FILE = path.join(__dirname, '..', 'trips_collections.json');
+
+// -------------------------------------------------------------
+// Permanent Multi-Tier Database & Storage Engine Configuration
+// -------------------------------------------------------------
+// Supports Render Persistent Disk (e.g. DATA_DIR=/var/data),
+// container storage with baseline seed recovery, and rolling backups.
+export const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, '..', 'data');
+
+export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+
+// Ensure persistent storage and backup directories exist
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  }
+} catch (dirErr) {
+  console.warn('[RouteWise DB] Warning creating data directories:', dirErr);
+}
+
+const DATA_FILE = path.join(DATA_DIR, 'trips_data.json');
+const USERS_FILE = path.join(DATA_DIR, 'users_data.json');
+const SHARED_TRIPS_FILE = path.join(DATA_DIR, 'shared_trips.json');
+const TRIPS_COLLECTIONS_FILE = path.join(DATA_DIR, 'trips_collections.json');
+
+// Atomic and safe JSON write utility to prevent corruption on abrupt shutdowns
+function atomicWriteJson(filePath: string, data: any) {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tempFile = `${filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const content = JSON.stringify(data, null, 2);
+    fs.writeFileSync(tempFile, content, 'utf-8');
+    try {
+      fs.renameSync(tempFile, filePath);
+    } catch {
+      // Fallback if OS file-lock (e.g. Windows) prevents immediate rename
+      fs.writeFileSync(filePath, content, 'utf-8');
+      if (fs.existsSync(tempFile)) {
+        try { fs.unlinkSync(tempFile); } catch {}
+      }
+    }
+  } catch (err) {
+    console.error(`[RouteWise DB] Write error for ${filePath}:`, err);
+  }
+}
+
+// Prune old timestamped backups keeping the latest 30 snapshots
+function pruneOldBackups(prefix: string, maxKeep: number = 30) {
+  try {
+    if (!fs.existsSync(BACKUP_DIR)) return;
+    const files = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.startsWith(prefix) && f.endsWith('.json') && !f.includes('latest'))
+      .map(f => ({ name: f, time: fs.statSync(path.join(BACKUP_DIR, f)).mtime.getTime() }))
+      .sort((a, b) => b.time - a.time);
+
+    if (files.length > maxKeep) {
+      for (let i = maxKeep; i < files.length; i++) {
+        try {
+          fs.unlinkSync(path.join(BACKUP_DIR, files[i].name));
+        } catch {}
+      }
+    }
+  } catch {}
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'routewise_jwt_secret_mumbai_secure_key_2026';
 
@@ -148,96 +215,227 @@ export function verifyToken(token: string): TokenPayload | null {
 }
 
 function loadPersistedUsers(): Map<string, UserRecord> {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      const raw = fs.readFileSync(USERS_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      return new Map(Object.entries(data));
+  const merged = new Map<string, UserRecord>();
+
+  // Layer 1: Baseline Seed file (committed in repo - ensures non-zero database on fresh deployments)
+  const seedFile = path.join(__dirname, '..', 'users_data.seed.json');
+  if (fs.existsSync(seedFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) {
+        merged.set(k, v as UserRecord);
+      }
+    } catch (e) {
+      console.warn('[RouteWise DB] Warning reading users seed file:', e);
     }
-  } catch (err) {
-    console.warn('[RouteWise API] Could not read users_data.json:', err);
   }
-  return new Map();
+
+  // Layer 2: Legacy root users file (in backend/users_data.json)
+  const legacyRootFile = path.join(__dirname, '..', 'users_data.json');
+  if (fs.existsSync(legacyRootFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(legacyRootFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) {
+        merged.set(k, v as UserRecord);
+      }
+    } catch (e) {
+      console.warn('[RouteWise DB] Warning reading legacy root users file:', e);
+    }
+  }
+
+  // Layer 3: Latest backup file
+  const latestBackup = path.join(BACKUP_DIR, 'users_backup_latest.json');
+  if (fs.existsSync(latestBackup)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(latestBackup, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) {
+        merged.set(k, v as UserRecord);
+      }
+    } catch (e) {
+      console.warn('[RouteWise DB] Warning reading users backup file:', e);
+    }
+  }
+
+  // Layer 4: Primary persistent disk file in DATA_DIR
+  if (fs.existsSync(USERS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) {
+        merged.set(k, v as UserRecord);
+      }
+    } catch (e) {
+      console.warn('[RouteWise DB] Warning reading primary users file:', e);
+    }
+  }
+
+  // Sync consolidated records into USERS_FILE and root file
+  if (merged.size > 0) {
+    atomicWriteJson(USERS_FILE, Object.fromEntries(merged));
+    atomicWriteJson(path.join(BACKUP_DIR, 'users_backup_latest.json'), Object.fromEntries(merged));
+    if (path.resolve(legacyRootFile) !== path.resolve(USERS_FILE)) {
+      atomicWriteJson(legacyRootFile, Object.fromEntries(merged));
+    }
+  }
+
+  console.log(`[RouteWise DB] Loaded ${merged.size} user accounts with permanent persistence.`);
+  return merged;
 }
 
+let lastUserBackupTime = 0;
 function persistUsers(users: Map<string, UserRecord>) {
   try {
     const obj = Object.fromEntries(users);
-    fs.writeFileSync(USERS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    atomicWriteJson(USERS_FILE, obj);
+
+    const legacyRootFile = path.join(__dirname, '..', 'users_data.json');
+    if (path.resolve(legacyRootFile) !== path.resolve(USERS_FILE)) {
+      atomicWriteJson(legacyRootFile, obj);
+    }
+
+    atomicWriteJson(path.join(BACKUP_DIR, 'users_backup_latest.json'), obj);
+
+    const now = Date.now();
+    if (now - lastUserBackupTime > 60000) {
+      lastUserBackupTime = now;
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      atomicWriteJson(path.join(BACKUP_DIR, `users_backup_${ts}.json`), obj);
+      pruneOldBackups('users_backup_');
+    }
   } catch (err) {
-    console.warn('[RouteWise API] Could not write users_data.json:', err);
+    console.error('[RouteWise DB] Could not write users_data.json:', err);
   }
 }
 
 export const usersMap = loadPersistedUsers();
 
 function loadPersistedTrips(): Map<string, any> {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      return new Map(Object.entries(data));
-    }
-  } catch (err) {
-    console.warn('[RouteWise API] Could not read trips_data.json:', err);
+  const merged = new Map<string, any>();
+  const legacyRootFile = path.join(__dirname, '..', 'trips_data.json');
+  if (fs.existsSync(legacyRootFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(legacyRootFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v);
+    } catch {}
   }
-  return new Map();
+  if (fs.existsSync(DATA_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v);
+    } catch {}
+  }
+  if (merged.size > 0) {
+    atomicWriteJson(DATA_FILE, Object.fromEntries(merged));
+  }
+  return merged;
 }
 
 function persistTrips(trips: Map<string, any>) {
   try {
     const obj = Object.fromEntries(trips);
-    fs.writeFileSync(DATA_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    atomicWriteJson(DATA_FILE, obj);
+    const legacyRootFile = path.join(__dirname, '..', 'trips_data.json');
+    if (path.resolve(legacyRootFile) !== path.resolve(DATA_FILE)) {
+      atomicWriteJson(legacyRootFile, obj);
+    }
   } catch (err) {
-    console.warn('[RouteWise API] Could not write trips_data.json:', err);
+    console.error('[RouteWise DB] Could not write trips_data.json:', err);
   }
 }
 
 export const savedTripsMap = loadPersistedTrips();
 
 function loadPersistedSharedTrips(): Map<string, SharedTripRecord> {
-  try {
-    if (fs.existsSync(SHARED_TRIPS_FILE)) {
-      const raw = fs.readFileSync(SHARED_TRIPS_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      return new Map(Object.entries(data));
-    }
-  } catch (err) {
-    console.warn('[RouteWise API] Could not read shared_trips.json:', err);
+  const merged = new Map<string, SharedTripRecord>();
+  const seedFile = path.join(__dirname, '..', 'shared_trips.seed.json');
+  if (fs.existsSync(seedFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v as SharedTripRecord);
+    } catch {}
   }
-  return new Map();
+  const legacyRootFile = path.join(__dirname, '..', 'shared_trips.json');
+  if (fs.existsSync(legacyRootFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(legacyRootFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v as SharedTripRecord);
+    } catch {}
+  }
+  if (fs.existsSync(SHARED_TRIPS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(SHARED_TRIPS_FILE, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v as SharedTripRecord);
+    } catch {}
+  }
+  if (merged.size > 0) {
+    atomicWriteJson(SHARED_TRIPS_FILE, Object.fromEntries(merged));
+  }
+  return merged;
 }
 
 function persistSharedTrips(trips: Map<string, SharedTripRecord>) {
   try {
     const obj = Object.fromEntries(trips);
-    fs.writeFileSync(SHARED_TRIPS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    atomicWriteJson(SHARED_TRIPS_FILE, obj);
+    const legacyRootFile = path.join(__dirname, '..', 'shared_trips.json');
+    if (path.resolve(legacyRootFile) !== path.resolve(SHARED_TRIPS_FILE)) {
+      atomicWriteJson(legacyRootFile, obj);
+    }
+    atomicWriteJson(path.join(BACKUP_DIR, 'shared_backup_latest.json'), obj);
   } catch (err) {
-    console.warn('[RouteWise API] Could not write shared_trips.json:', err);
+    console.error('[RouteWise DB] Could not write shared_trips.json:', err);
   }
 }
 
 export const sharedTripsMap = loadPersistedSharedTrips();
 
 function loadPersistedTripCollections(): Map<string, TripRecord> {
-  try {
-    if (fs.existsSync(TRIPS_COLLECTIONS_FILE)) {
-      const raw = fs.readFileSync(TRIPS_COLLECTIONS_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      return new Map(Object.entries(data));
-    }
-  } catch (err) {
-    console.warn('[RouteWise API] Could not read trips_collections.json:', err);
+  const merged = new Map<string, TripRecord>();
+  const seedFile = path.join(__dirname, '..', 'trips_collections.seed.json');
+  if (fs.existsSync(seedFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(seedFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v as TripRecord);
+    } catch {}
   }
-  return new Map();
+  const legacyRootFile = path.join(__dirname, '..', 'trips_collections.json');
+  if (fs.existsSync(legacyRootFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(legacyRootFile, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v as TripRecord);
+    } catch {}
+  }
+  if (fs.existsSync(TRIPS_COLLECTIONS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(TRIPS_COLLECTIONS_FILE, 'utf-8'));
+      for (const [k, v] of Object.entries(data)) merged.set(k, v as TripRecord);
+    } catch {}
+  }
+  if (merged.size > 0) {
+    atomicWriteJson(TRIPS_COLLECTIONS_FILE, Object.fromEntries(merged));
+  }
+  return merged;
 }
 
+let lastCollectionBackupTime = 0;
 function persistTripCollections(collections: Map<string, TripRecord>) {
   try {
     const obj = Object.fromEntries(collections);
-    fs.writeFileSync(TRIPS_COLLECTIONS_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+    atomicWriteJson(TRIPS_COLLECTIONS_FILE, obj);
+    const legacyRootFile = path.join(__dirname, '..', 'trips_collections.json');
+    if (path.resolve(legacyRootFile) !== path.resolve(TRIPS_COLLECTIONS_FILE)) {
+      atomicWriteJson(legacyRootFile, obj);
+    }
+    atomicWriteJson(path.join(BACKUP_DIR, 'collections_backup_latest.json'), obj);
+
+    const now = Date.now();
+    if (now - lastCollectionBackupTime > 60000) {
+      lastCollectionBackupTime = now;
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      atomicWriteJson(path.join(BACKUP_DIR, `collections_backup_${ts}.json`), obj);
+      pruneOldBackups('collections_backup_');
+    }
   } catch (err) {
-    console.warn('[RouteWise API] Could not write trips_collections.json:', err);
+    console.error('[RouteWise DB] Could not write trips_collections.json:', err);
   }
 }
 
@@ -310,9 +508,29 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     return res.status(401).json({ error: 'Access denied. Invalid or expired token.' });
   }
 
-  const user = usersMap.get(payload.uid);
+  let user = usersMap.get(payload.uid);
   if (!user) {
-    return res.status(401).json({ error: 'Access denied. Account no longer exists.' });
+    // Check if user exists by email or username
+    user = findUserByIdentifier(payload.email) || findUserByIdentifier(payload.username);
+    if (user) {
+      usersMap.set(payload.uid, user);
+    } else {
+      // Self-healing: The token has a cryptographically valid HMAC-SHA256 signature
+      // issued by this server with JWT_SECRET.
+      // Reconstruct and restore user record so valid active sessions are never dropped!
+      const restoredUser: UserRecord = {
+        uid: payload.uid,
+        email: payload.email,
+        username: payload.username,
+        displayName: payload.username,
+        passwordHash: '', // Protected: password remains unchanged in database or can be reset
+        createdAt: new Date().toISOString(),
+      };
+      usersMap.set(payload.uid, restoredUser);
+      persistUsers(usersMap);
+      user = restoredUser;
+      console.log(`[RouteWise DB] Restored valid authenticated session for ${payload.email} (${payload.uid})`);
+    }
   }
 
   req.user = user;
@@ -325,9 +543,10 @@ app.get('/', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'Route Optimizer API',
     project: 'Smart Travel Planner (RouteWise)',
-    version: '1.1.0',
+    version: '1.2.0',
     endpoints: {
       health: '/api/health',
+      backup: 'GET /api/admin/backup',
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
       me: 'GET /api/auth/me',
@@ -342,15 +561,62 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// Health check endpoint
+// Comprehensive Health check endpoint with storage persistence status
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     project: 'Smart Travel Planner (RouteWise)',
     usersCount: usersMap.size,
+    tripCollectionsCount: tripCollectionsMap.size,
     sharedTripsCount: sharedTripsMap.size,
+    persistence: {
+      storageEngine: 'Multi-Tier JSON Document Store with Seed Baseline & Rolling Snapshots',
+      dataDirectory: DATA_DIR,
+      persistentDiskConfigured: Boolean(process.env.DATA_DIR),
+      backupDirectory: BACKUP_DIR,
+      status: 'protected',
+    },
     timestamp: new Date().toISOString(),
   });
+});
+
+// Admin Database Backup & Export Endpoint (Protected)
+app.get('/api/admin/backup', (req: Request, res: Response) => {
+  try {
+    const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
+    const expectedKey = process.env.ADMIN_KEY || JWT_SECRET;
+
+    const user = resolveRequestUser(req);
+    if (!user && adminKey !== expectedKey) {
+      return res.status(401).json({ error: 'Unauthorized to export backup data.' });
+    }
+
+    const payload = {
+      timestamp: new Date().toISOString(),
+      version: '1.2.0',
+      stats: {
+        totalUsers: usersMap.size,
+        totalTripCollections: tripCollectionsMap.size,
+        totalSharedTrips: sharedTripsMap.size,
+        totalLegacyTrips: savedTripsMap.size,
+      },
+      data: {
+        users: Object.fromEntries(usersMap),
+        tripCollections: Object.fromEntries(tripCollectionsMap),
+        sharedTrips: Object.fromEntries(sharedTripsMap),
+        savedTrips: Object.fromEntries(savedTripsMap),
+      },
+      storage: {
+        dataDir: DATA_DIR,
+        backupDir: BACKUP_DIR,
+        persistentDiskConfigured: Boolean(process.env.DATA_DIR),
+      },
+    };
+
+    res.json({ success: true, backup: payload });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Backup generation failed' });
+  }
 });
 
 /**

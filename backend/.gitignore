@@ -3,5 +3,5 @@ dist/
 .env
 .env.*
 *.log
-users_data.json
-trips_data.json
+data/
+
