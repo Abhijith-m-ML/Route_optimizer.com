@@ -3,19 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Compass, 
-  User, 
   UserCheck,
   Mail, 
   Lock, 
   Eye, 
   EyeOff, 
   ArrowRight, 
-  AlertCircle, 
-  Sparkles
+  AlertCircle
 } from 'lucide-react';
 
 export const SignupPage: React.FC = () => {
-  const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +22,6 @@ export const SignupPage: React.FC = () => {
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   const [errors, setErrors] = useState<{
-    fullName?: string;
     username?: string;
     email?: string;
     password?: string;
@@ -37,7 +33,7 @@ export const SignupPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
-  const { signup, loginWithGoogle, isConfigured, formatAuthError } = useAuth();
+  const { signup, loginWithGoogle, formatAuthError } = useAuth();
   const navigate = useNavigate();
 
   const passwordStrength = useMemo(() => {
@@ -65,19 +61,12 @@ export const SignupPage: React.FC = () => {
 
   const validateForm = (): boolean => {
     const newErrors: {
-      fullName?: string;
       username?: string;
       email?: string;
       password?: string;
       confirmPassword?: string;
       terms?: string;
     } = {};
-
-    if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (fullName.trim().length < 2) {
-      newErrors.fullName = 'Name must be at least 2 characters';
-    }
 
     if (username.trim()) {
       if (username.trim().length < 2) {
@@ -123,7 +112,8 @@ export const SignupPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await signup(email.trim(), password, fullName.trim(), username.trim() || undefined);
+      const userDisplayName = username.trim() || email.trim().split('@')[0];
+      await signup(email.trim(), password, userDisplayName, username.trim() || undefined);
       navigate('/dashboard', { replace: true });
     } catch (err) {
       const msg = formatAuthError(err);
@@ -179,17 +169,6 @@ export const SignupPage: React.FC = () => {
           </p>
         </div>
 
-        {!isConfigured && (
-          <div className="mt-5 bg-gradient-to-r from-indigo-950/70 via-slate-900 to-cyan-950/70 border border-indigo-500/30 rounded-2xl p-3.5 text-xs text-slate-200 shadow-xl flex items-start gap-2.5">
-            <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-            <div className="leading-relaxed">
-              <span className="font-bold text-cyan-300">Demo Registration Active: </span>
-              Firebase is not configured in <code className="bg-slate-800 px-1 py-0.5 rounded text-[11px] font-mono text-cyan-200">frontend/.env</code>.
-              You can create an account with any details to test the dashboard.
-            </div>
-          </div>
-        )}
-
         <div className="mt-5 bg-slate-900/90 backdrop-blur-xl py-8 px-6 sm:px-8 border border-slate-800 rounded-3xl shadow-2xl">
           {errors.general && (
             <div className="mb-5 bg-rose-950/60 border border-rose-500/50 rounded-xl p-3 text-xs text-rose-200 flex items-start gap-2.5">
@@ -199,38 +178,6 @@ export const SignupPage: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <div>
-              <label htmlFor="signup-name" className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Full Name
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <User className="w-4 h-4" />
-                </div>
-                <input
-                  id="signup-name"
-                  type="text"
-                  autoComplete="name"
-                  value={fullName}
-                  onChange={(e) => {
-                    setFullName(e.target.value);
-                    if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: undefined }));
-                  }}
-                  placeholder="e.g. Aarav Sharma"
-                  className={`w-full bg-slate-950/80 text-sm text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 py-2.5 border transition focus:outline-none focus:ring-2 ${
-                    errors.fullName
-                      ? 'border-rose-500/80 focus:ring-rose-500/40'
-                      : 'border-slate-700/80 focus:border-indigo-500 focus:ring-indigo-500/40'
-                  }`}
-                />
-              </div>
-              {errors.fullName && (
-                <p className="mt-1 text-xs text-rose-400 flex items-center gap-1 font-medium">
-                  <AlertCircle className="w-3 h-3" /> {errors.fullName}
-                </p>
-              )}
-            </div>
-
             {/* Username Field (Case-sensitive identity) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
