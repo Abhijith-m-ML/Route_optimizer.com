@@ -18,15 +18,38 @@ const TRIPS_COLLECTIONS_PREFIX = 'routewise_user_trips_';
 const GLOBAL_TRIPS_COLLECTIONS_KEY = 'routewise_user_trips';
 
 /**
- * Retrieve saved trip from localStorage for the given user, falling back to global trip
+ * Checks if a given userId represents a genuine authenticated user account
+ */
+export function isExplicitAuthUser(userId?: string | null): boolean {
+  return Boolean(
+    userId &&
+    userId !== 'guest' &&
+    userId !== 'default' &&
+    userId.trim() !== ''
+  );
+}
+
+/**
+ * Clean unauthenticated guest session data from localStorage to prevent leakage
+ */
+export function clearGuestSessionData(): void {
+  try {
+    localStorage.removeItem(GLOBAL_STORAGE_KEY);
+    localStorage.removeItem(GLOBAL_TRIPS_COLLECTIONS_KEY);
+  } catch {}
+}
+
+/**
+ * Retrieve saved trip from localStorage for the given user, with strict account isolation
  */
 export function getSavedTrip(userId?: string | null): SavedTrip | null {
   try {
-    const userKey = userId ? `${STORAGE_PREFIX}${userId.toLowerCase()}` : null;
+    const isAuth = isExplicitAuthUser(userId);
+    const userKey = isAuth && userId ? `${STORAGE_PREFIX}${userId.toLowerCase()}` : null;
     let raw = userKey ? localStorage.getItem(userKey) : null;
     
-    // Fall back to general key if user-specific key is not found
-    if (!raw) {
+    // Fall back to general key ONLY if this is an unauthenticated guest session
+    if (!raw && !isAuth) {
       raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
     }
 
@@ -35,6 +58,11 @@ export function getSavedTrip(userId?: string | null): SavedTrip | null {
     const parsed: SavedTrip = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.stops)) {
       return null;
+    }
+
+    // Cleanse any legacy explorer titles
+    if (parsed.title && (parsed.title.toLowerCase().includes('highlights explorer') || parsed.title.toLowerCase().includes('mumbai highlights'))) {
+      parsed.title = 'My Trip';
     }
 
     return parsed;
@@ -119,8 +147,11 @@ export async function getSavedTripFromCloud(userId?: string | null): Promise<Sav
         const data = snap.data() as SavedTrip;
         if (data && Array.isArray(data.stops)) {
           try {
-            localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
-            localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
+            if (isExplicitAuthUser(userId)) {
+              localStorage.setItem(`${STORAGE_PREFIX}${userId!.toLowerCase()}`, JSON.stringify(data));
+            } else {
+              localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
+            }
           } catch {}
           return data;
         }
@@ -139,10 +170,11 @@ export async function getSavedTripFromCloud(userId?: string | null): Promise<Sav
         if (json.trip && Array.isArray(json.trip.stops)) {
           const data = json.trip as SavedTrip;
           try {
-            if (userId) {
-              localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, JSON.stringify(data));
+            if (isExplicitAuthUser(userId)) {
+              localStorage.setItem(`${STORAGE_PREFIX}${userId!.toLowerCase()}`, JSON.stringify(data));
+            } else {
+              localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
             }
-            localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(data));
           } catch {}
           return data;
         }
@@ -167,24 +199,30 @@ export async function saveTripToStorage(
   },
   userId?: string | null
 ): Promise<SavedTrip> {
+  const isAuth = isExplicitAuthUser(userId);
+  const cleanTitle = tripData.title && !tripData.title.toLowerCase().includes('highlights explorer')
+    ? tripData.title
+    : 'My Trip';
+
   const trip: SavedTrip = {
-    id: 'trip_' + (userId ? `${userId.toLowerCase()}_` : '') + Date.now(),
-    title: tripData.title || 'Highlights Explorer',
+    id: 'trip_' + (isAuth && userId ? `${userId.toLowerCase()}_` : '') + Date.now(),
+    title: cleanTitle,
     travelMode: tripData.travelMode,
     stops: tripData.stops,
     lastSavedAt: tripData.lastSavedAt,
     updatedAt: new Date().toISOString(),
-    userId: userId || 'guest',
+    userId: isAuth && userId ? userId : 'guest',
   };
 
   const serialized = JSON.stringify(trip);
 
-  // 1. Primary persistence: localStorage (instant, per-browser)
+  // 1. Primary persistence: localStorage (strictly isolated per user)
   try {
-    if (userId) {
+    if (isAuth && userId) {
       localStorage.setItem(`${STORAGE_PREFIX}${userId.toLowerCase()}`, serialized);
+    } else {
+      localStorage.setItem(GLOBAL_STORAGE_KEY, serialized);
     }
-    localStorage.setItem(GLOBAL_STORAGE_KEY, serialized);
   } catch (err) {
     console.warn('[RouteWise] Failed to save trip to localStorage:', err);
   }
@@ -435,27 +473,42 @@ export async function fetchSharedTrip(shareId: string): Promise<SharedTripData |
 // =========================================================================
 
 /**
- * Loads trip collections from localStorage with automatic migration of legacy saved trip
+ * Loads trip collections from localStorage with strict account isolation
  */
 export function loadLocalTrips(userId?: string | null): TripCollection[] {
   try {
-    const key = userId ? `${TRIPS_COLLECTIONS_PREFIX}${userId.toLowerCase()}` : GLOBAL_TRIPS_COLLECTIONS_KEY;
+    const isAuth = isExplicitAuthUser(userId);
+    const key = isAuth && userId ? `${TRIPS_COLLECTIONS_PREFIX}${userId.toLowerCase()}` : GLOBAL_TRIPS_COLLECTIONS_KEY;
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed)) {
+        // Sanitize any legacy explorer names
+        return parsed.map((t: TripCollection) => {
+          if (t.name && (t.name.toLowerCase().includes('highlights explorer') || t.name.toLowerCase().includes('mumbai highlights'))) {
+            return { ...t, name: 'My Trip' };
+          }
+          return t;
+        });
       }
     }
 
-    // Auto-migrate from legacy single trip if available
-    const legacy = getSavedTrip(userId);
+    // NEVER auto-migrate unauthenticated guest / global trips into an authenticated user's account!
+    if (isAuth) {
+      return [];
+    }
+
+    // For unauthenticated guest only: check legacy guest storage
+    const legacy = getSavedTrip(null);
     if (legacy && Array.isArray(legacy.stops) && legacy.stops.length > 0) {
+      const cleanName = legacy.title && !legacy.title.toLowerCase().includes('highlights explorer')
+        ? legacy.title
+        : 'My Trip';
       const migratedTrip: TripCollection = {
         id: 'trip_' + Date.now(),
-        userId: userId || 'default',
-        name: legacy.title || 'Mumbai Trip',
-        description: 'Auto-migrated from previous route',
+        userId: 'guest',
+        name: cleanName,
+        description: 'Active route',
         travelMode: legacy.travelMode || 'DRIVING',
         stops: legacy.stops,
         isOptimized: false,
@@ -463,7 +516,7 @@ export function loadLocalTrips(userId?: string | null): TripCollection[] {
         updatedAt: legacy.updatedAt || new Date().toISOString(),
       };
       const initialList = [migratedTrip];
-      saveLocalTrips(initialList, userId);
+      saveLocalTrips(initialList, null);
       return initialList;
     }
   } catch (err) {
@@ -473,15 +526,14 @@ export function loadLocalTrips(userId?: string | null): TripCollection[] {
 }
 
 /**
- * Saves trip collections to localStorage
+ * Saves trip collections to localStorage with strict user boundary
  */
 export function saveLocalTrips(trips: TripCollection[], userId?: string | null): void {
   try {
-    const key = userId ? `${TRIPS_COLLECTIONS_PREFIX}${userId.toLowerCase()}` : GLOBAL_TRIPS_COLLECTIONS_KEY;
+    const isAuth = isExplicitAuthUser(userId);
+    const key = isAuth && userId ? `${TRIPS_COLLECTIONS_PREFIX}${userId.toLowerCase()}` : GLOBAL_TRIPS_COLLECTIONS_KEY;
     localStorage.setItem(key, JSON.stringify(trips));
-    if (userId) {
-      localStorage.setItem(GLOBAL_TRIPS_COLLECTIONS_KEY, JSON.stringify(trips));
-    }
+    // NEVER overwrite GLOBAL_TRIPS_COLLECTIONS_KEY with an authenticated user's trips!
   } catch (err) {
     console.warn('[RouteWise] Failed to save local trips:', err);
   }
@@ -489,7 +541,7 @@ export function saveLocalTrips(trips: TripCollection[], userId?: string | null):
 
 /**
  * Fetches all trips for the authenticated or current user from the backend API,
- * with seamless fallback to localStorage and auto-migration.
+ * with seamless fallback to localStorage.
  */
 export async function fetchUserTrips(userId?: string | null, token?: string | null): Promise<TripCollection[]> {
   const localList = loadLocalTrips(userId);
@@ -504,27 +556,17 @@ export async function fetchUserTrips(userId?: string | null, token?: string | nu
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.trips)) {
-          // If server returned trips, persist locally
-          if (json.trips.length > 0) {
-            saveLocalTrips(json.trips, userId);
-            return json.trips;
-          } else if (localList.length > 0) {
-            // Sync local trips up to server
-            for (const t of localList) {
-              await createUserTrip(
-                {
-                  name: t.name,
-                  description: t.description,
-                  travelMode: t.travelMode,
-                  stops: t.stops,
-                  isOptimized: t.isOptimized,
-                },
-                userId,
-                token
-              );
+          // Cleanse any legacy titles in trips from server
+          const cleanTrips: TripCollection[] = json.trips.map((t: TripCollection) => {
+            if (t.name && (t.name.toLowerCase().includes('highlights explorer') || t.name.toLowerCase().includes('mumbai highlights'))) {
+              return { ...t, name: 'My Trip' };
             }
-            return localList;
-          }
+            return t;
+          });
+
+          // If server returned trips (including empty [] for a brand new user), persist locally and return
+          saveLocalTrips(cleanTrips, userId);
+          return cleanTrips;
         }
       }
     } catch {

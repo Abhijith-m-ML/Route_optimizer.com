@@ -1389,36 +1389,13 @@ function sanitizeStops(stops: any[]): any[] {
   }));
 }
 
-// GET /api/user-trips - List all trips for current user with auto-migration from legacy single-trip store
+// GET /api/user-trips - List all trips for current user
 app.get('/api/user-trips', (req: Request, res: Response) => {
   try {
     const user = resolveRequestUser(req);
     const userId = user?.uid || (req.query.userId as string) || 'default';
-    const userKey = userId.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
 
     let userTrips = Array.from(tripCollectionsMap.values()).filter(t => t.userId === userId);
-
-    // Auto-migrate legacy saved trip if user has 0 collections yet
-    if (userTrips.length === 0) {
-      const legacy = savedTripsMap.get(userKey);
-      if (legacy && Array.isArray(legacy.stops) && legacy.stops.length > 0) {
-        const migratedTrip: TripRecord = {
-          id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-          userId,
-          name: legacy.title || 'Mumbai Highlights Explorer',
-          description: 'Migrated from previous active route',
-          travelMode: legacy.travelMode || 'DRIVING',
-          stops: sanitizeStops(legacy.stops),
-          isOptimized: Boolean(legacy.isOptimized),
-          createdAt: legacy.updatedAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        tripCollectionsMap.set(migratedTrip.id, migratedTrip);
-        persistTripCollections(tripCollectionsMap);
-        saveTripCollectionToDb(migratedTrip).catch(() => {});
-        userTrips.push(migratedTrip);
-      }
-    }
 
     userTrips.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 

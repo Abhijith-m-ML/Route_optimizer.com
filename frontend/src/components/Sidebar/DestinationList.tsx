@@ -59,7 +59,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
               <Folder className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
             )}
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300 truncate">
-              {isAllTripsView ? 'All Trip Destinations' : activeTrip?.name || 'Saved Destinations'}
+              {isAllTripsView ? 'All Trips' : activeTrip?.name || 'Saved Destinations'}
             </span>
           </div>
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-indigo-400 border border-slate-700/80 flex-shrink-0">

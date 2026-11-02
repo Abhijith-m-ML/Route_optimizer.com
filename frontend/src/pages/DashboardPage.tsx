@@ -34,28 +34,10 @@ export const DashboardPage: React.FC = () => {
   // User-Created Trip Collections State
   // -------------------------------------------------------------
   const [trips, setTrips] = useState<TripCollection[]>(() => {
-    const initial = loadLocalTrips(userId);
-    if (initial.length > 0) return initial;
-    // Default initial collection
-    const defaultTrip: TripCollection = {
-      id: 'trip_' + Date.now(),
-      userId,
-      name: 'Mumbai Trip',
-      description: 'Iconic landmarks and destinations',
-      travelMode: 'DRIVING',
-      stops: [],
-      isOptimized: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    saveLocalTrips([defaultTrip], userId);
-    return [defaultTrip];
+    return loadLocalTrips(userId);
   });
 
-  const [activeTripId, setActiveTripId] = useState<string | 'ALL'>(() => {
-    const initial = loadLocalTrips(userId);
-    return initial[0]?.id || 'ALL';
-  });
+  const [activeTripId, setActiveTripId] = useState<string | 'ALL'>('ALL');
 
   // Keep initial active stop null so no popups open passively on initial page load
   const [activeStopId, setActiveStopId] = useState<string | null>(null);
@@ -90,13 +72,18 @@ export const DashboardPage: React.FC = () => {
 
   // Synchronize trips from backend API with local cache
   useEffect(() => {
+    const local = loadLocalTrips(userId);
+    setTrips(local);
+    setActiveTripId('ALL');
+    setActiveStopId(null);
+
     fetchUserTrips(userId, user?.token).then((remoteTrips) => {
-      if (remoteTrips && remoteTrips.length > 0) {
+      if (Array.isArray(remoteTrips)) {
         setTrips(remoteTrips);
         setActiveTripId((prev) => {
           if (prev === 'ALL') return 'ALL';
           if (remoteTrips.some((t) => t.id === prev)) return prev;
-          return remoteTrips[0]?.id || 'ALL';
+          return 'ALL';
         });
       }
     });
@@ -175,7 +162,7 @@ export const DashboardPage: React.FC = () => {
   const stops = currentStops;
 
   const travelMode: TravelMode = activeTrip?.travelMode || 'DRIVING';
-  const tripTitle: string = activeTripId === 'ALL' ? 'All Trips' : activeTrip?.name || 'My Trip';
+  const tripTitle: string = activeTripId === 'ALL' ? 'All Trips' : activeTrip?.name || 'All Trips';
   const isOptimized: boolean = activeTrip?.isOptimized || false;
 
   // Live route metrics
@@ -208,23 +195,23 @@ export const DashboardPage: React.FC = () => {
     [userId, user?.token]
   );
 
-  // Add destination to currently active trip (or prompt / default)
+  // Add destination to currently active trip (or default under All Trips)
   const handleAddStop = async (destination: Destination) => {
     let targetTrip = activeTrip;
     let currentTripsList = [...trips];
 
-    // If viewing ALL trips, add to the first trip or create a new one
+    // If viewing ALL trips, add to the first trip or create a new one while remaining in All Trips view
     if (!targetTrip) {
       if (currentTripsList.length === 0) {
         try {
           const newTrip = await createUserTrip(
-            { name: 'My First Trip', description: 'Created with your first destination' },
+            { name: 'My Trip', description: 'Default itinerary collection' },
             userId,
             user?.token
           );
           currentTripsList = [newTrip];
           setTrips(currentTripsList);
-          setActiveTripId(newTrip.id);
+          // Keep activeTripId as 'ALL' so view stays under All Trips!
           targetTrip = newTrip;
         } catch (err: any) {
           showToast({ type: 'warning', title: 'Trip Error', description: err.message });
@@ -232,7 +219,6 @@ export const DashboardPage: React.FC = () => {
         }
       } else {
         targetTrip = currentTripsList[0];
-        setActiveTripId(targetTrip.id);
       }
     }
 

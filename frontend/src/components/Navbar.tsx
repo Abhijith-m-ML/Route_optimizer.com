@@ -150,21 +150,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="h-6 w-px bg-slate-800 hidden md:block" />
 
           {/* Trip Selector Dropdown (Desktop & Tablet) */}
-          {trips && trips.length > 0 && (
-            <div className="hidden sm:block">
-              <TripSelector
-                trips={trips}
-                activeTripId={activeTripId}
-                onSelectTrip={onSelectTrip || (() => {})}
-                onCreateNewTrip={onCreateNewTrip || (() => {})}
-                onOpenMyTrips={onOpenMyTrips || (() => {})}
-              />
-            </div>
-          )}
+          <div className="hidden sm:block">
+            <TripSelector
+              trips={trips}
+              activeTripId={activeTripId}
+              onSelectTrip={onSelectTrip || (() => {})}
+              onCreateNewTrip={onCreateNewTrip || (() => {})}
+              onOpenMyTrips={onOpenMyTrips || (() => {})}
+            />
+          </div>
 
           {/* Editable Trip Title (Desktop & Tablet) */}
           <div className="min-w-0 max-w-xs sm:max-w-md hidden md:block">
-            {isEditingTitle ? (
+            {isEditingTitle && activeTripId !== 'ALL' ? (
               <input
                 type="text"
                 value={tempTitle}
@@ -183,16 +181,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={() => {
-                  setTempTitle(tripTitle);
-                  setIsEditingTitle(true);
+                  if (activeTripId !== 'ALL') {
+                    setTempTitle(tripTitle);
+                    setIsEditingTitle(true);
+                  } else if (onOpenMyTrips) {
+                    onOpenMyTrips();
+                  }
                 }}
                 className="flex items-center space-x-1.5 text-left text-xs md:text-sm font-semibold text-slate-200 hover:text-white px-2 py-1 rounded-md hover:bg-slate-800/60 transition group max-w-full"
-                title="Click to rename trip"
+                title={activeTripId !== 'ALL' ? 'Click to rename trip' : 'Manage Trips'}
               >
                 <span className="truncate">{tripTitle}</span>
-                <span className="text-slate-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                  ✎
-                </span>
+                {activeTripId !== 'ALL' && (
+                  <span className="text-slate-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    ✎
+                  </span>
+                )}
               </button>
             )}
             {lastSavedAt && (

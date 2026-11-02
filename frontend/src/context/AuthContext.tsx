@@ -14,6 +14,7 @@ import {
   verifyBackendSession,
   type AuthUser,
 } from '../services/authService';
+import { clearGuestSessionData } from '../services/tripService';
 
 export interface AuthContextType {
   user: AuthUser | null;
@@ -74,18 +75,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, pass: string, rememberMe: boolean = true) => {
+    clearGuestSessionData();
     const authUser = await loginWithEmail(email, pass, rememberMe);
     setUser(authUser);
     return authUser;
   };
 
   const signup = async (email: string, pass: string, displayName: string, username?: string) => {
+    clearGuestSessionData();
     const authUser = await registerWithEmail(email, pass, displayName, username);
     setUser(authUser);
     return authUser;
   };
 
   const loginWithGoogle = async () => {
+    clearGuestSessionData();
     const authUser = await signInWithGoogle();
     setUser(authUser);
     return authUser;
@@ -98,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    clearGuestSessionData();
     await authLogout();
     setUser(null);
   };

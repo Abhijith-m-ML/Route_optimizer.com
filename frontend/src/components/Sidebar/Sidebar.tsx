@@ -154,31 +154,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
 
             {/* Trip Selector Header */}
-            {trips.length > 0 && (
-              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-sm">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex-shrink-0">
-                    Trip:
-                  </span>
-                  <TripSelector
-                    trips={trips}
-                    activeTripId={activeTripId}
-                    onSelectTrip={onSelectTrip || (() => {})}
-                    onCreateNewTrip={onCreateNewTrip || (() => {})}
-                    onOpenMyTrips={onOpenMyTrips || (() => {})}
-                  />
-                </div>
-                {onOpenMyTrips && (
-                  <button
-                    type="button"
-                    onClick={onOpenMyTrips}
-                    className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex-shrink-0 px-2 py-1 rounded-lg hover:bg-slate-800"
-                  >
-                    My Trips
-                  </button>
-                )}
+            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-2.5 flex items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex-shrink-0">
+                  Trip:
+                </span>
+                <TripSelector
+                  trips={trips}
+                  activeTripId={activeTripId}
+                  onSelectTrip={onSelectTrip || (() => {})}
+                  onCreateNewTrip={onCreateNewTrip || (() => {})}
+                  onOpenMyTrips={onOpenMyTrips || (() => {})}
+                />
               </div>
-            )}
+              {onOpenMyTrips && (
+                <button
+                  type="button"
+                  onClick={onOpenMyTrips}
+                  className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition flex-shrink-0 px-2 py-1 rounded-lg hover:bg-slate-800"
+                >
+                  My Trips
+                </button>
+              )}
+            </div>
 
             {/* Destination Search Bar */}
             <div>
