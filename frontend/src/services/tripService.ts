@@ -73,9 +73,32 @@ export function getSavedTrip(userId?: string | null): SavedTrip | null {
 }
 
 /**
- * Resolves the backend URL dynamically (uses VITE_BACKEND_URL or defaults to deployed Render backend in production)
+ * Resolves the backend URL dynamically (uses query param, localStorage, VITE_BACKEND_URL, or candidate fallbacks)
  */
 export function getBackendUrl(): string {
+  if (typeof window !== 'undefined') {
+    // Check if passed via URL parameter e.g. ?backend=https://...
+    try {
+      const search = window.location.search;
+      if (search) {
+        const params = new URLSearchParams(search);
+        const paramUrl = params.get('backend')?.trim();
+        if (paramUrl && paramUrl.startsWith('http')) {
+          localStorage.setItem('routewise_backend_url', paramUrl.replace(/\/+$/, ''));
+          return paramUrl.replace(/\/+$/, '');
+        }
+      }
+    } catch {}
+
+    // Check user-configured override in localStorage
+    try {
+      const custom = localStorage.getItem('routewise_backend_url')?.trim();
+      if (custom && custom.startsWith('http')) {
+        return custom.replace(/\/+$/, '');
+      }
+    } catch {}
+  }
+
   const envUrl = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.trim();
   const isLocalhost =
     typeof window !== 'undefined' &&
@@ -110,11 +133,36 @@ export function getBackendUrl(): string {
  * Enables automatic seamless failover between local server and cloud backend.
  */
 export function getBackendCandidateUrls(): string[] {
-  const primary = getBackendUrl();
-  const candidates: string[] = [primary];
-  const cloudUrl = 'https://vazhikatti-gfuq.onrender.com';
-  const localUrl = 'http://localhost:5000';
+  const candidates: string[] = [];
+  
+  if (typeof window !== 'undefined') {
+    try {
+      const custom = localStorage.getItem('routewise_backend_url')?.trim();
+      if (custom && custom.startsWith('http')) {
+        candidates.push(custom.replace(/\/+$/, ''));
+      }
+    } catch {}
+  }
 
+  const primary = getBackendUrl();
+  if (!candidates.includes(primary)) {
+    candidates.push(primary);
+  }
+
+  const fallbacks = [
+    'https://vazhikatti-gfuq.onrender.com',
+    'https://vazhikatti-backend.onrender.com',
+    'https://routewise-backend.onrender.com',
+    'https://vazhikatti.onrender.com',
+  ];
+
+  for (const fb of fallbacks) {
+    if (!candidates.includes(fb)) {
+      candidates.push(fb);
+    }
+  }
+
+  const localUrl = 'http://localhost:5000';
   const isLocalhost =
     typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' ||
@@ -123,10 +171,6 @@ export function getBackendCandidateUrls(): string[] {
 
   if (isLocalhost && !candidates.includes(localUrl)) {
     candidates.unshift(localUrl);
-  }
-
-  if (!candidates.includes(cloudUrl)) {
-    candidates.push(cloudUrl);
   }
 
   return candidates;
@@ -670,9 +714,6 @@ export async function updateUserTrip(
 ): Promise<TripCollection> {
   const localTrips = loadLocalTrips(userId);
   const targetIndex = localTrips.findIndex(t => t.id === tripId);
-  if (targetIndex === -1 && localTrips.length === 0) {
-    throw new Error('Trip not found.');
-  }
 
   // If renaming, check case-insensitive uniqueness against other trips
   if (updates.name) {
@@ -695,14 +736,19 @@ export async function updateUserTrip(
       const res = await fetch(`${backendUrl}/api/user-trips/${tripId}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          ...updates,
+          userId: userId || undefined,
+        }),
       });
 
       if (res.ok) {
         const json = await res.json();
         if (json.trip) {
           const updatedTrip = json.trip as TripCollection;
-          const newList = localTrips.map(t => (t.id === tripId ? updatedTrip : t));
+          const newList = targetIndex >= 0
+            ? localTrips.map(t => (t.id === tripId ? updatedTrip : t))
+            : [updatedTrip, ...localTrips];
           saveLocalTrips(newList, userId);
           return updatedTrip;
         }
@@ -716,7 +762,7 @@ export async function updateUserTrip(
   }
 
   // Local fallback
-  const existing = localTrips[targetIndex] || {
+  const existing = (targetIndex >= 0 ? localTrips[targetIndex] : null) || {
     id: tripId,
     userId: userId || 'default',
     name: 'My Trip',

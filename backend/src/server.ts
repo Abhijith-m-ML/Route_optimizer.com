@@ -1339,11 +1339,34 @@ app.post('/api/trips', (req: Request, res: Response) => {
   });
 });
 
-// Retrieve Trip Endpoint (Legacy compatibility)
+// Retrieve Trip Endpoint (Legacy compatibility with collection fallback)
 app.get('/api/trips/:userId', (req: Request, res: Response) => {
   const rawId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
   const userKey = String(rawId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
-  const trip = savedTripsMap.get(userKey);
+  let trip = savedTripsMap.get(userKey);
+
+  // If not in legacy store, find the user's latest active trip from collections
+  if (!trip) {
+    const userRec = Array.from(usersMap.values()).find(
+      u => u.uid === rawId || 
+           (u.email && u.email.toLowerCase() === String(rawId).toLowerCase()) || 
+           (u.username && u.username.toLowerCase() === String(rawId).toLowerCase())
+    );
+    const validIds = new Set([rawId, userRec?.uid, userRec?.email, userRec?.username].filter(Boolean));
+    const collectionTrip = Array.from(tripCollectionsMap.values()).find(t => validIds.has(t.userId));
+    if (collectionTrip) {
+      trip = {
+        id: collectionTrip.id,
+        title: collectionTrip.name,
+        travelMode: collectionTrip.travelMode,
+        stops: collectionTrip.stops,
+        lastSavedAt: collectionTrip.updatedAt,
+        updatedAt: collectionTrip.updatedAt,
+        userId: collectionTrip.userId,
+      };
+    }
+  }
+
   if (trip) {
     return res.json({ success: true, trip });
   }
@@ -1393,9 +1416,24 @@ function sanitizeStops(stops: any[]): any[] {
 app.get('/api/user-trips', (req: Request, res: Response) => {
   try {
     const user = resolveRequestUser(req);
-    const userId = user?.uid || (req.query.userId as string) || 'default';
+    const rawUserId = user?.uid || (req.query.userId as string) || 'default';
 
-    let userTrips = Array.from(tripCollectionsMap.values()).filter(t => t.userId === userId);
+    // Build a set of all valid user IDs (uid, email, username) to support cross-device sync
+    const matchedUser = user || Array.from(usersMap.values()).find(
+      u => u.uid === rawUserId ||
+           (u.email && u.email.toLowerCase() === String(rawUserId).toLowerCase()) ||
+           (u.username && u.username.toLowerCase() === String(rawUserId).toLowerCase())
+    );
+
+    const validUserIds = new Set<string>();
+    if (rawUserId) validUserIds.add(rawUserId);
+    if (matchedUser) {
+      if (matchedUser.uid) validUserIds.add(matchedUser.uid);
+      if (matchedUser.email) validUserIds.add(matchedUser.email);
+      if (matchedUser.username) validUserIds.add(matchedUser.username);
+    }
+
+    let userTrips = Array.from(tripCollectionsMap.values()).filter(t => validUserIds.has(t.userId));
 
     userTrips.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -1477,10 +1515,36 @@ app.put('/api/user-trips/:tripId', (req: Request, res: Response) => {
   try {
     const rawId = req.params.tripId;
     const tripId = Array.isArray(rawId) ? rawId[0] : rawId;
-    const trip = tripCollectionsMap.get(tripId);
+    let trip = tripCollectionsMap.get(tripId);
 
+    // If trip does not exist yet on this server (e.g. created offline or on another device), upsert it
     if (!trip) {
-      return res.status(404).json({ success: false, error: 'Trip not found.' });
+      const user = resolveRequestUser(req);
+      const userId = user?.uid || req.body.userId || 'default';
+      const now = new Date().toISOString();
+      const newName = (req.body.name || 'My Trip').trim();
+
+      trip = {
+        id: tripId,
+        userId,
+        name: newName,
+        description: typeof req.body.description === 'string' ? req.body.description.trim() : '',
+        travelMode: req.body.travelMode || 'DRIVING',
+        stops: sanitizeStops(req.body.stops || []),
+        isOptimized: Boolean(req.body.isOptimized),
+        createdAt: req.body.createdAt || now,
+        updatedAt: now,
+      };
+
+      tripCollectionsMap.set(tripId, trip);
+      persistTripCollections(tripCollectionsMap);
+      saveTripCollectionToDb(trip).catch(() => {});
+
+      return res.json({
+        success: true,
+        message: 'Trip created and synced successfully',
+        trip,
+      });
     }
 
     const { name, description, travelMode, stops, isOptimized } = req.body;

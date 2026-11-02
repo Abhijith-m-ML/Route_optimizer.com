@@ -1754,5 +1754,300 @@
     "isOptimized": false,
     "createdAt": "2026-10-31T22:08:39.598Z",
     "updatedAt": "2026-10-31T22:08:39.598Z"
+  },
+  "trip_1793628464220_1yb9e": {
+    "id": "trip_1793628464220_1yb9e",
+    "userId": "usr_1793265107746_xoakg",
+    "name": "kerala",
+    "description": "Default itinerary collection",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "place_ChIJv8a-SlENCDsRkkGEpcqC1Qs",
+        "placeId": "ChIJv8a-SlENCDsRkkGEpcqC1Qs",
+        "name": "Kochi",
+        "address": "Kochi, Keralam, India",
+        "shortAddress": "Kochi, Keralam",
+        "city": "Kochi",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 9.9312328,
+          "lng": 76.26730409999999
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "id": "place_ChIJu9FC7RXupzsR26dsAapFLgg",
+        "placeId": "ChIJu9FC7RXupzsR26dsAapFLgg",
+        "name": "Thrissur",
+        "address": "Thrissur, Keralam, India",
+        "shortAddress": "Thrissur, Keralam",
+        "city": "Thrissur",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 10.524117600000002,
+          "lng": 76.2120649
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "id": "place_ChIJjwWb4ptKpjsRjg3D1OBx4yM",
+        "placeId": "ChIJjwWb4ptKpjsRjg3D1OBx4yM",
+        "name": "Malappuram",
+        "address": "Malappuram, Keralam, India",
+        "shortAddress": "Malappuram, Keralam",
+        "city": "Malappuram",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.0509762,
+          "lng": 76.0710967
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 3,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ]
+      },
+      {
+        "id": "place_ChIJ0cJ2NewipjsR_bjWqheUe-8",
+        "placeId": "ChIJ0cJ2NewipjsR_bjWqheUe-8",
+        "name": "Edakkara",
+        "address": "Edakkara, Keralam 679331, India",
+        "shortAddress": "Edakkara, Keralam 679331",
+        "city": "Edakkara",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.3615163,
+          "lng": 76.3027395
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 4,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ]
+      }
+    ],
+    "isOptimized": true,
+    "createdAt": "2026-11-02T14:07:44.221Z",
+    "updatedAt": "2026-11-02T14:12:24.163Z"
+  },
+  "trip_1793630585694_g5qew": {
+    "id": "trip_1793630585694_g5qew",
+    "userId": "usr_1793630585593_krwer",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Updated route",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793630585694",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793630585694",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-11-02T14:43:05.694Z",
+    "updatedAt": "2026-11-02T14:43:05.719Z"
+  },
+  "trip_1793630585705_0mu3s": {
+    "id": "trip_1793630585705_0mu3s",
+    "userId": "usr_1793630585647_ewtu3",
+    "name": "Mumbai Trip",
+    "description": "User B Mumbai exploration",
+    "travelMode": "DRIVING",
+    "stops": [],
+    "isOptimized": false,
+    "createdAt": "2026-11-02T14:43:05.705Z",
+    "updatedAt": "2026-11-02T14:43:05.705Z"
+  },
+  "trip_1793630585734_elsjs": {
+    "id": "trip_1793630585734_elsjs",
+    "userId": "usr_1793630585647_ewtu3",
+    "name": "Mumbai & Goa Adventure",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793630585694",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793630585694",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-11-02T14:43:05.734Z",
+    "updatedAt": "2026-11-02T14:43:05.734Z"
+  },
+  "trip_1793630585739_i4l00": {
+    "id": "trip_1793630585739_i4l00",
+    "userId": "usr_1793630585647_ewtu3",
+    "name": "Mumbai & Goa Adventure (2)",
+    "description": "Imported from shared trip by User A",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "stop_0_1793630585694",
+        "placeId": "",
+        "name": "Gateway of India",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.922,
+          "lng": 72.8347
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      },
+      {
+        "id": "stop_1_1793630585694",
+        "placeId": "",
+        "name": "Marine Drive",
+        "address": "",
+        "shortAddress": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "coordinates": {
+          "lat": 18.943,
+          "lng": 72.823
+        },
+        "category": "heritage",
+        "rating": 4.5,
+        "reviewsCount": 100,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80",
+        "tags": []
+      }
+    ],
+    "isOptimized": false,
+    "createdAt": "2026-11-02T14:43:05.739Z",
+    "updatedAt": "2026-11-02T14:43:05.739Z"
   }
 }

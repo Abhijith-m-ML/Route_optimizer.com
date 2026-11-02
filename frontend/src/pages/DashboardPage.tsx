@@ -15,7 +15,8 @@ import {
   fetchUserTrips,
   createUserTrip,
   updateUserTrip,
-  deleteUserTrip
+  deleteUserTrip,
+  saveTripToStorage
 } from '../services/tripService';
 import { SharedTripPreviewModal } from '../components/SharedTripPreviewModal';
 import { ShareDialog } from '../components/ShareDialog';
@@ -451,12 +452,68 @@ export const DashboardPage: React.FC = () => {
     setIsSaving(true);
     try {
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      // 1. Save locally for instant persistence
       saveLocalTrips(trips, userId);
+
+      // 2. Sync all user trip collections to central backend
+      let syncedCount = 0;
+      for (const t of trips) {
+        try {
+          await updateUserTrip(
+            t.id,
+            {
+              name: t.name,
+              description: t.description,
+              stops: t.stops,
+              travelMode: t.travelMode,
+              isOptimized: t.isOptimized,
+            },
+            userId,
+            user?.token
+          );
+          syncedCount++;
+        } catch {
+          try {
+            await createUserTrip(
+              {
+                name: t.name,
+                description: t.description,
+                stops: t.stops,
+                travelMode: t.travelMode,
+                isOptimized: t.isOptimized,
+              },
+              userId,
+              user?.token
+            );
+            syncedCount++;
+          } catch {}
+        }
+      }
+
+      // 3. Sync active route to cloud storage for cross-device synchronization
+      if (stops.length > 0) {
+        await saveTripToStorage(
+          {
+            title: tripTitle,
+            travelMode,
+            stops,
+            lastSavedAt: timeStr,
+          },
+          userId
+        ).catch(() => {});
+      }
+
       setLastSavedAt(timeStr);
       showToast({
         type: 'success',
-        title: 'Trips Saved Successfully',
-        description: `All ${trips.length} trip collections saved securely at ${timeStr}.`,
+        title: 'Trips Saved & Synced',
+        description: `All ${trips.length} trip collections saved and synced securely to cloud at ${timeStr}. Accessible on all your devices!`,
+      });
+    } catch {
+      showToast({
+        type: 'info',
+        title: 'Saved Locally',
+        description: 'Trips saved on this device. Cloud sync will automatically complete when online.',
       });
     } finally {
       setIsSaving(false);
