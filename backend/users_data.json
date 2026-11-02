@@ -858,5 +858,54 @@
     "authProvider": "linked",
     "picture": "https://lh3.googleusercontent.com/a/test_pic_2",
     "updatedAt": "2026-10-31T22:08:53.770Z"
+  },
+  "usr_1793614111498_2w8yy": {
+    "uid": "usr_1793614111498_2w8yy",
+    "email": "traveler_1793614111388@mumbai.com",
+    "username": "mumbai_user_1793614111388",
+    "displayName": "Mumbai Traveler",
+    "passwordHash": "73fc80d1dceb168be0ce83c7f4ce72e9:f3344feb35d88f3c94a8b71134a36b5bbb4ab951f8c121cad52491dbd66558dc0c98c064b2c38a1ecc11f69b0be6665fd6f7d906c879da0891166ad25e627399",
+    "createdAt": "2026-11-02T10:08:31.540Z"
+  },
+  "usr_1793614111757_tweku": {
+    "uid": "usr_1793614111757_tweku",
+    "email": "explorer_upper_1793614111756@mumbai.com",
+    "username": "Explorer_1793614111756",
+    "displayName": "Explorer Upper",
+    "passwordHash": "e03526de9c20a1a463adc9d40eb18da0:1bbcb826ab905499a375e45c6dd6aa03e698ed2f56eeef9a730bdc951a65094b28e2247bd50185590b190753fededa589bdab682762cc25bcdd34a9888635e71",
+    "createdAt": "2026-11-02T10:08:31.796Z"
+  },
+  "usr_1793614111804_kdvv2": {
+    "uid": "usr_1793614111804_kdvv2",
+    "email": "explorer_lower_1793614111756@mumbai.com",
+    "username": "explorer_1793614111756",
+    "displayName": "Explorer Lower",
+    "passwordHash": "d5132bc645b01d93fec83c6f1f0ffdbd:c526242dd56de304cda753858835b28715752100506dc157c7a56f38cb58544509bafef51e1dcf3b88c5d82a38a77772eb9287f1068ee1d075f477cffd9482a2",
+    "createdAt": "2026-11-02T10:08:31.844Z"
+  },
+  "usr_g_google_user_sub_1793614126199": {
+    "uid": "usr_g_google_user_sub_1793614126199",
+    "email": "google_traveler_1793614126199@gmail.com",
+    "username": "google_traveler_1793614126199",
+    "displayName": "Aarav Google Explorer",
+    "passwordHash": "",
+    "googleId": "google_user_sub_1793614126199",
+    "picture": "https://lh3.googleusercontent.com/a/test_pic_1",
+    "authProvider": "google",
+    "emailVerified": true,
+    "createdAt": "2026-11-02T10:08:46.203Z"
+  },
+  "usr_1793614126227_03ye7": {
+    "uid": "usr_1793614126227_03ye7",
+    "email": "hybrid_traveler_1793614126224@mumbai.com",
+    "username": "hybrid_1793614126224",
+    "displayName": "Hybrid Traveler",
+    "passwordHash": "f9b1263b8199f7d2884cd9c983a529d2:5a29b3f58803547c2f054a4130ec8794e314aea2f3edf1360faed72646bcb3ab2e05389442c5d987d792e59e287daf547beb1cc786a664a2e5dfaa25e5793660",
+    "createdAt": "2026-11-02T10:08:46.265Z",
+    "googleId": "google_linked_sub_1793614126271",
+    "emailVerified": true,
+    "authProvider": "linked",
+    "picture": "https://lh3.googleusercontent.com/a/test_pic_2",
+    "updatedAt": "2026-11-02T10:08:46.274Z"
   }
 }

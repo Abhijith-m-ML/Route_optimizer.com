@@ -404,3 +404,4 @@ async function runMigration() {
 }
 
 runMigration();
+

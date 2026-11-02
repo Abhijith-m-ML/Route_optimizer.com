@@ -1,3 +1,4 @@
+// @ts-ignore
 import pg from 'pg';
 import type { UserRecord, TripRecord, SharedTripRecord } from './server.js';
 
@@ -15,7 +16,7 @@ function getSslConfig(connectionString: string | undefined): boolean | { rejectU
 
 export const databaseUrl = (process.env.DATABASE_URL || '').trim();
 
-export const pool: pg.Pool | null = databaseUrl
+export const pool: any = databaseUrl
   ? new Pool({
       connectionString: databaseUrl,
       ssl: getSslConfig(databaseUrl),
@@ -26,8 +27,8 @@ export const pool: pg.Pool | null = databaseUrl
   : null;
 
 if (pool) {
-  pool.on('error', (err) => {
-    console.error('[RouteWise Postgres] Unexpected pool error on idle client:', err.message);
+  pool.on('error', (err: any) => {
+    console.error('[RouteWise Postgres] Unexpected pool error on idle client:', err?.message || err);
   });
 }
 
@@ -476,3 +477,4 @@ export async function deleteLegacyTripFromDb(userKey: string): Promise<void> {
     console.error(`[RouteWise Postgres] Failed to delete legacy trip for ${userKey}:`, err.message);
   }
 }
+

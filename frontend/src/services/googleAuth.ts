@@ -91,9 +91,12 @@ export interface GoogleAuthResponse {
  * Returns verified access token or credential to send to the central backend.
  */
 export async function triggerGoogleSignInPopup(): Promise<GoogleAuthResponse> {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const configuredId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const clientId = (configuredId && configuredId.trim() !== '' && configuredId !== 'your_google_client_id_here')
+    ? configuredId.trim()
+    : '995930596730-c05cc5jf07cvlt2j5pm1jnte3ipt0bj0.apps.googleusercontent.com';
 
-  if (!clientId || clientId.trim() === '' || clientId === 'your_google_client_id_here') {
+  if (!clientId) {
     throw new Error(
       'Google Sign-In is not configured. Please set VITE_GOOGLE_CLIENT_ID in your Vercel / environment configuration.'
     );

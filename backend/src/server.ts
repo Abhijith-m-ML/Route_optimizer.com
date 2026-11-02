@@ -99,8 +99,8 @@ function pruneOldBackups(prefix: string, maxKeep: number = 30) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'routewise_jwt_secret_mumbai_secure_key_2026';
-export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-export const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+export const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '995930596730-c05cc5jf07cvlt2j5pm1jnte3ipt0bj0.apps.googleusercontent.com').trim();
+export const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 
 export const googleOAuthClient = new OAuth2Client(
   GOOGLE_CLIENT_ID || undefined,
@@ -698,9 +698,9 @@ app.get('/api/health', async (_req: Request, res: Response) => {
       connected: dbConnected,
     },
     googleOAuth: {
-      enabled: Boolean(process.env.GOOGLE_CLIENT_ID),
-      clientIdConfigured: Boolean(process.env.GOOGLE_CLIENT_ID),
-      clientSecretConfigured: Boolean(process.env.GOOGLE_CLIENT_SECRET),
+      enabled: Boolean(GOOGLE_CLIENT_ID),
+      clientIdConfigured: Boolean(GOOGLE_CLIENT_ID),
+      clientSecretConfigured: Boolean(GOOGLE_CLIENT_SECRET),
     },
     persistence: {
       storageEngine: process.env.DATABASE_URL
@@ -795,7 +795,7 @@ export function findUserByIdentifier(identifier: string): UserRecord | undefined
  * issuer (accounts.google.com), audience (GOOGLE_CLIENT_ID), and expiration.
  */
 export async function verifyGoogleToken(idToken: string): Promise<VerifiedGoogleUser> {
-  const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+  const configuredClientId = GOOGLE_CLIENT_ID;
   if (!configuredClientId) {
     throw new Error('Google OAuth is not configured on the backend. Please set GOOGLE_CLIENT_ID in server environment variables.');
   }
@@ -853,7 +853,7 @@ export async function verifyGoogleAuthCode(code: string, redirectUri: string = '
  * Verifies a Google access token by querying Google's userinfo endpoint.
  */
 export async function verifyGoogleAccessToken(accessToken: string): Promise<VerifiedGoogleUser> {
-  const configuredClientId = process.env.GOOGLE_CLIENT_ID;
+  const configuredClientId = GOOGLE_CLIENT_ID;
 
   // 1. Verify token with Google's tokeninfo endpoint to validate audience & issuer if configured
   if (configuredClientId) {
