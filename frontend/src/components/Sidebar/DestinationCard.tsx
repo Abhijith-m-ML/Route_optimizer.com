@@ -3,12 +3,11 @@ import {
   ChevronUp, 
   ChevronDown, 
   Trash2, 
-  Clock, 
-  Star, 
   Car,
   Train,
   Footprints,
-  MapPin
+  MapPin,
+  Flag
 } from 'lucide-react';
 import type { SelectedStop, TravelMode } from '../../types';
 
@@ -21,7 +20,8 @@ interface DestinationCardProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
-  onUpdateDuration: (minutes: number) => void;
+  onSetAsStart?: () => void;
+  onUpdateDuration?: (minutes: number) => void;
   travelMode: TravelMode;
 }
 
@@ -34,7 +34,7 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
   onMoveUp,
   onMoveDown,
   onRemove,
-  onUpdateDuration,
+  onSetAsStart,
   travelMode,
 }) => {
   const isFirst = index === 0;
@@ -45,8 +45,6 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
     : isLast
     ? 'bg-rose-500 text-white'
     : 'bg-indigo-600 text-white';
-
-  const visitDuration = stop.customDurationMinutes || stop.typicalVisitDurationMinutes;
 
   const ModeIcon = {
     DRIVING: Car,
@@ -68,11 +66,20 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
         <div className="flex items-start gap-3">
           {/* Stop Number Badge */}
           <div className="flex flex-col items-center flex-shrink-0 pt-0.5">
-            <div
-              className={`w-7 h-7 rounded-xl flex items-center justify-center font-extrabold text-xs shadow-md ${badgeColorClass}`}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isFirst && onSetAsStart) onSetAsStart();
+              }}
+              disabled={isFirst}
+              title={isFirst ? 'Starting Place' : 'Click to set as Starting Place'}
+              className={`w-7 h-7 rounded-xl flex items-center justify-center font-extrabold text-xs shadow-md transition ${badgeColorClass} ${
+                !isFirst ? 'hover:scale-105 hover:ring-2 hover:ring-emerald-400/50 cursor-pointer' : ''
+              }`}
             >
               {index + 1}
-            </div>
+            </button>
             <span className="text-[10px] text-slate-500 font-medium mt-1">
               {isFirst ? 'Start' : isLast ? 'End' : `Stop ${index + 1}`}
             </span>
@@ -128,40 +135,28 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
               {stop.shortAddress || stop.address}
             </p>
 
-            <div className="flex items-center gap-2 mt-1.5 text-[11px]">
-              <div className="flex items-center text-amber-400 font-semibold">
-                <Star className="w-3 h-3 fill-amber-400 mr-0.5" />
-                {stop.rating}
-              </div>
-              <span className="text-slate-600">•</span>
-              <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                {stop.category}
-              </span>
-            </div>
-
-            {/* Duration Selector & Reorder Buttons */}
+            {/* Actions: Set as Start & Reorder Buttons */}
             <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-800/80">
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                <Clock className="w-3 h-3 text-cyan-400" />
-                <span>Visit:</span>
-                <select
-                  value={visitDuration}
-                  onChange={(e) => {
+              {isFirst ? (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Starting Place</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
                     e.stopPropagation();
-                    onUpdateDuration(Number(e.target.value));
+                    if (onSetAsStart) onSetAsStart();
                   }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-slate-800 text-slate-200 text-xs sm:text-[11px] rounded-lg px-2 py-1 sm:py-0.5 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer min-h-[32px] sm:min-h-0"
-                  aria-label="Visit duration"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-emerald-500/20 active:bg-emerald-500/30 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/40 text-[11px] font-semibold transition group/startbtn shadow-sm"
+                  title="Make this the starting destination of your route"
+                  aria-label={`Set ${stop.name} as starting place`}
                 >
-                  <option value={30}>30 min</option>
-                  <option value={45}>45 min</option>
-                  <option value={60}>1 hour</option>
-                  <option value={90}>1.5 hrs</option>
-                  <option value={120}>2 hours</option>
-                  <option value={180}>3 hours</option>
-                </select>
-              </div>
+                  <Flag className="w-3.5 h-3.5 text-slate-400 group-hover/startbtn:text-emerald-400 transition" />
+                  <span>Set as Start</span>
+                </button>
+              )}
 
               {/* Up/Down buttons */}
               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>

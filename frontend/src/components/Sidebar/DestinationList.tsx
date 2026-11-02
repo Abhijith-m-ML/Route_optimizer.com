@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { DestinationCard } from './DestinationCard';
 import type { SelectedStop, TravelMode, Destination, TripCollection } from '../../types';
-import { MapPin, AlertTriangle, Trash2, X, Folder, Layers, Plus } from 'lucide-react';
+import { MapPin, AlertTriangle, Trash2, X, Folder, Layers, Plus, Flag } from 'lucide-react';
 
 interface DestinationListProps {
   stops: SelectedStop[];
@@ -10,6 +10,7 @@ interface DestinationListProps {
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
   onRemove: (id: string) => void;
+  onSetAsStart?: (index: number) => void;
   onUpdateDuration: (id: string, minutes: number) => void;
   onClearAll: () => void;
   onAddStop: (destination: Destination) => void;
@@ -28,6 +29,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onSetAsStart,
   onUpdateDuration,
   onClearAll,
   travelMode,
@@ -198,6 +200,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
                         onMoveUp={() => onMoveUp(originalIndex)}
                         onMoveDown={() => onMoveDown(originalIndex)}
                         onRemove={() => onRemove(stop.id)}
+                        onSetAsStart={() => onSetAsStart?.(originalIndex >= 0 ? originalIndex : 0)}
                         onUpdateDuration={(duration) => onUpdateDuration(stop.id, duration)}
                         travelMode={travelMode}
                       />
@@ -211,6 +214,36 @@ export const DestinationList: React.FC<DestinationListProps> = ({
       ) : (
         /* Sequential Route Order for Selected Trip */
         <div className="space-y-1 overflow-y-auto pr-1">
+          {/* Quick Starting Place Dropdown for multiple places */}
+          {stops.length >= 2 && (
+            <div className="mb-2 p-2 bg-slate-900/90 border border-slate-800 rounded-xl flex items-center justify-between gap-2 shadow-sm">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Flag className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider whitespace-nowrap">
+                  Start Place:
+                </span>
+              </div>
+              <select
+                value={stops[0]?.id || ''}
+                onChange={(e) => {
+                  const targetId = e.target.value;
+                  const targetIdx = stops.findIndex((s) => s.id === targetId);
+                  if (targetIdx > 0 && onSetAsStart) {
+                    onSetAsStart(targetIdx);
+                  }
+                }}
+                className="bg-slate-800 text-slate-200 text-xs rounded-lg px-2 py-1 border border-slate-700 focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[190px] truncate"
+                aria-label="Choose starting place"
+              >
+                {stops.map((s, idx) => (
+                  <option key={s.id} value={s.id}>
+                    {idx + 1}. {s.name} {idx === 0 ? '(Current Start)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {stops.map((stop, index) => (
             <DestinationCard
               key={stop.id}
@@ -222,6 +255,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
               onMoveUp={() => onMoveUp(index)}
               onMoveDown={() => onMoveDown(index)}
               onRemove={() => onRemove(stop.id)}
+              onSetAsStart={() => onSetAsStart?.(index)}
               onUpdateDuration={(duration) => onUpdateDuration(stop.id, duration)}
               travelMode={travelMode}
             />

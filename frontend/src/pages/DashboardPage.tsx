@@ -344,6 +344,35 @@ export const DashboardPage: React.FC = () => {
     });
   };
 
+  const handleSetAsStart = (index: number) => {
+    if (!activeTrip || index <= 0 || index >= activeTrip.stops.length) return;
+    const reordered = [...activeTrip.stops];
+    const [chosenStart] = reordered.splice(index, 1);
+    reordered.unshift(chosenStart);
+
+    const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+    persistTripUpdates({
+      ...activeTrip,
+      stops: updated.enrichedStops,
+      isOptimized: false,
+      updatedAt: new Date().toISOString(),
+    });
+
+    showToast({
+      type: 'success',
+      title: 'Starting Place Set',
+      description: `"${chosenStart.name}" is now the starting place for "${activeTrip.name}".`,
+    });
+  };
+
+  const handleSetAsStartById = (id: string) => {
+    if (!activeTrip) return;
+    const idx = activeTrip.stops.findIndex((s) => s.id === id);
+    if (idx > 0) {
+      handleSetAsStart(idx);
+    }
+  };
+
   const handleUpdateDuration = (id: string, minutes: number) => {
     if (!activeTrip) return;
     const updatedStops = activeTrip.stops.map((s) =>
@@ -712,6 +741,7 @@ export const DashboardPage: React.FC = () => {
             onMoveUp={handleMoveUp}
             onMoveDown={handleMoveDown}
             onRemoveStop={handleRemoveStop}
+            onSetAsStart={handleSetAsStart}
             onUpdateDuration={handleUpdateDuration}
             onClearAll={handleRequestReset}
             onOptimizeRoute={handleOptimizeRoute}
@@ -741,6 +771,7 @@ export const DashboardPage: React.FC = () => {
             activeStopId={activeStopId}
             onSelectStop={(id) => setActiveStopId(id)}
             onRemoveStop={handleRemoveStop}
+            onSetAsStart={handleSetAsStartById}
           />
         </div>
       </main>

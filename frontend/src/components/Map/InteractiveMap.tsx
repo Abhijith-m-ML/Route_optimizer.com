@@ -14,7 +14,7 @@ import {
   Navigation,
   X,
   Trash2,
-  Clock
+  Flag
 } from 'lucide-react';
 import { 
   loadGoogleMaps, 
@@ -40,6 +40,7 @@ export interface InteractiveMapProps {
   activeStopId?: string | null;
   onSelectStop?: (id: string) => void;
   onRemoveStop?: (id: string) => void;
+  onSetAsStart?: (id: string) => void;
 }
 
 /**
@@ -107,6 +108,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   activeStopId = null,
   onSelectStop,
   onRemoveStop,
+  onSetAsStart,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -314,11 +316,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       const badgesContainer = document.createElement('div');
       badgesContainer.style.cssText = 'display:flex; align-items:center; gap:6px; min-width:0;';
       badgesContainer.innerHTML = `
-        <span style="background:#4f46e5; color:#ffffff; font-size:10px; font-weight:800; padding:2px 7px; border-radius:999px; white-space:nowrap;">
+        <span style="background:${stopIndex === 0 ? '#10b981' : '#4f46e5'}; color:#ffffff; font-size:10px; font-weight:800; padding:2px 7px; border-radius:999px; white-space:nowrap;">
           ${badgeLabel}
-        </span>
-        <span style="font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-          ${stop.category || 'Landmark'}
         </span>
       `;
       headerRow.appendChild(badgesContainer);
@@ -336,10 +335,32 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       `;
       content.appendChild(infoBody);
 
-      // Footer row containing Remove Stop button (left) and Google Maps Pin logo (bottom-right)
+      // Footer row containing action buttons (left) and Google Maps Pin logo (bottom-right)
       const footerRow = document.createElement('div');
       footerRow.style.cssText =
         'display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; padding-top:4px;';
+
+      const leftActions = document.createElement('div');
+      leftActions.style.cssText = 'display:flex; align-items:center; gap:6px;';
+
+      if (stopIndex !== 0 && onSetAsStart) {
+        const startBtn = document.createElement('button');
+        startBtn.innerText = 'Set as Start';
+        startBtn.setAttribute('data-testid', 'set-start-btn');
+        startBtn.style.cssText =
+          'font-size:10px; font-weight:700; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px; cursor:pointer; transition:background-color 0.15s ease;';
+        startBtn.onmouseover = () => {
+          startBtn.style.backgroundColor = '#d1fae5';
+        };
+        startBtn.onmouseout = () => {
+          startBtn.style.backgroundColor = '#ecfdf5';
+        };
+        startBtn.onclick = () => {
+          infoWindowRef.current?.close();
+          onSetAsStart(stop.id);
+        };
+        leftActions.appendChild(startBtn);
+      }
 
       // Remove button inside InfoWindow
       const removeBtn = document.createElement('button');
@@ -357,7 +378,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         infoWindowRef.current?.close();
         onRemoveStop?.(stop.id);
       };
-      footerRow.appendChild(removeBtn);
+      leftActions.appendChild(removeBtn);
+      footerRow.appendChild(leftActions);
 
       // Google Maps Pin logo navigation link on the bottom-right
       const navLink = document.createElement('a');
@@ -910,15 +932,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     </span>
                   </span>
                 )}
-                <span className="text-slate-600">•</span>
-                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                  {mobileSelectedStop.stop.category || 'Landmark'}
-                </span>
-                <span className="text-slate-600">•</span>
-                <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                  <Clock className="w-2.5 h-2.5 text-cyan-400" />
-                  {mobileSelectedStop.stop.customDurationMinutes || mobileSelectedStop.stop.typicalVisitDurationMinutes || 60}m
-                </span>
+                {mobileSelectedStop.index === 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Starting Place
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    Stop #{mobileSelectedStop.index + 1}
+                  </span>
+                )}
               </div>
 
               {mobileSelectedStop.stop.shortAddress && (
@@ -927,20 +950,37 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 </p>
               )}
 
-              {/* Actions: Remove Stop & Google Maps Navigation */}
+              {/* Actions: Set as Start, Remove Stop & Google Maps Navigation */}
               <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onRemoveStop?.(mobileSelectedStop.stop.id);
-                    setMobileSelectedStop(null);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition min-h-[44px]"
-                  data-testid="remove-stop-btn"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Remove Stop</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {mobileSelectedStop.index !== 0 && onSetAsStart && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSetAsStart(mobileSelectedStop.stop.id);
+                        setMobileSelectedStop(null);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 active:bg-emerald-500/35 border border-emerald-500/30 transition min-h-[44px]"
+                      data-testid="set-start-btn"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                      <span>Set as Start</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRemoveStop?.(mobileSelectedStop.stop.id);
+                      setMobileSelectedStop(null);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition min-h-[44px]"
+                    data-testid="remove-stop-btn"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Stop</span>
+                  </button>
+                </div>
 
                 <a
                   href={getGoogleMapsDirectionsUrl(

@@ -20,6 +20,7 @@ interface SidebarProps {
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
   onRemoveStop: (id: string) => void;
+  onSetAsStart?: (index: number) => void;
   onUpdateDuration: (id: string, minutes: number) => void;
   onClearAll: () => void;
   onOptimizeRoute: () => void;
@@ -49,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMoveUp,
   onMoveDown,
   onRemoveStop,
+  onSetAsStart,
   onUpdateDuration,
   onClearAll,
   onOptimizeRoute,
@@ -234,6 +236,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
               onRemove={onRemoveStop}
+              onSetAsStart={onSetAsStart}
               onUpdateDuration={onUpdateDuration}
               onClearAll={onClearAll}
               onAddStop={onAddStop}

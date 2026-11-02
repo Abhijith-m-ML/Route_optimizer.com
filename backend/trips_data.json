@@ -1,0 +1,179 @@
+{
+  "usr_1793265107746_xoakg": {
+    "id": "trip_usr_1793265107746_xoakg_1793632741244",
+    "title": "All Trips",
+    "travelMode": "DRIVING",
+    "stops": [
+      {
+        "id": "place_ChIJv8a-SlENCDsRkkGEpcqC1Qs",
+        "placeId": "ChIJv8a-SlENCDsRkkGEpcqC1Qs",
+        "name": "Kochi",
+        "address": "Kochi, Keralam, India",
+        "shortAddress": "Kochi, Keralam",
+        "city": "Kochi",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 9.9312328,
+          "lng": 76.26730409999999
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ],
+        "distanceToNextKm": 87.4,
+        "timeToNextMinutes": 232
+      },
+      {
+        "id": "place_ChIJu9FC7RXupzsR26dsAapFLgg",
+        "placeId": "ChIJu9FC7RXupzsR26dsAapFLgg",
+        "name": "Thrissur",
+        "address": "Thrissur, Keralam, India",
+        "shortAddress": "Thrissur, Keralam",
+        "city": "Thrissur",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 10.524117600000002,
+          "lng": 76.2120649
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ],
+        "distanceToNextKm": 80,
+        "timeToNextMinutes": 213
+      },
+      {
+        "id": "place_ChIJjwWb4ptKpjsRjg3D1OBx4yM",
+        "placeId": "ChIJjwWb4ptKpjsRjg3D1OBx4yM",
+        "name": "Malappuram",
+        "address": "Malappuram, Keralam, India",
+        "shortAddress": "Malappuram, Keralam",
+        "city": "Malappuram",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.0509762,
+          "lng": 76.0710967
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 3,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ],
+        "distanceToNextKm": 56.5,
+        "timeToNextMinutes": 151
+      },
+      {
+        "id": "place_ChIJ0cJ2NewipjsR_bjWqheUe-8",
+        "placeId": "ChIJ0cJ2NewipjsR_bjWqheUe-8",
+        "name": "Edakkara",
+        "address": "Edakkara, Keralam 679331, India",
+        "shortAddress": "Edakkara, Keralam 679331",
+        "city": "Edakkara",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.3615163,
+          "lng": 76.3027395
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 4,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ],
+        "distanceToNextKm": 76.5,
+        "timeToNextMinutes": 204
+      },
+      {
+        "id": "place_ChIJR0c9VjhZpjsRq-wyykEGFTI",
+        "placeId": "ChIJR0c9VjhZpjsRq-wyykEGFTI",
+        "name": "Kozhikode",
+        "address": "Kozhikode, Keralam, India",
+        "shortAddress": "Kozhikode, Keralam",
+        "city": "Kozhikode",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 11.2488425,
+          "lng": 75.78392099999999
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 5,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ],
+        "distanceToNextKm": 366,
+        "timeToNextMinutes": 959
+      },
+      {
+        "id": "place_ChIJIcap3Vv8BTsR93JzJpUx8Is",
+        "placeId": "ChIJIcap3Vv8BTsR93JzJpUx8Is",
+        "name": "Kollam",
+        "category": "modern",
+        "description": "Kollam, Keralam, India",
+        "address": "Kollam, Keralam, India",
+        "shortAddress": "Kollam, Keralam",
+        "city": "Kollam",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 8.8932118,
+          "lng": 76.6141396
+        },
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "locality",
+          "political"
+        ],
+        "stopOrder": 6,
+        "customDurationMinutes": 60
+      }
+    ],
+    "lastSavedAt": "08:49 PM",
+    "updatedAt": "2026-11-02T15:19:01.244Z",
+    "userId": "usr_1793265107746_xoakg"
+  }
+}
