@@ -103,6 +103,18 @@ export function getGoogleMapsDirectionsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
 }
 
+const getInitialMapTheme = (): MapThemeType => {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('vazhikatti_map_theme');
+      if (saved === 'dark' || saved === 'roadmap' || saved === 'satellite') {
+        return saved as MapThemeType;
+      }
+    } catch {}
+  }
+  return 'roadmap'; // White / standard Google Maps on initial open
+};
+
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   stops = [],
   activeStopId = null,
@@ -118,7 +130,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   const [status, setStatus] = useState<MapLoadingStatus>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [currentTheme, setCurrentTheme] = useState<MapThemeType>('dark');
+  const [currentTheme, setCurrentTheme] = useState<MapThemeType>(getInitialMapTheme);
+  const currentThemeRef = useRef<MapThemeType>(currentTheme);
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
   const [mobileSelectedStop, setMobileSelectedStop] = useState<{ stop: SelectedStop; index: number } | null>(null);
   const userClickedStopIdRef = useRef<string | null>(null);
@@ -159,13 +172,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       }
 
       // Create new real Google Map instance using official library
+      const themeToApply = currentThemeRef.current;
       const map = new mapsLib.Map(mapContainerRef.current, {
         center: MUMBAI_CENTER,
         zoom: DEFAULT_ZOOM,
         minZoom: 1, // Enable full/infinite zoom out (global & national view)
         maxZoom: 21,
-        mapTypeId: 'roadmap',
-        styles: currentTheme === 'dark' ? ROUTEWISE_DARK_MAP_STYLE : undefined,
+        mapTypeId: themeToApply === 'satellite' ? 'hybrid' : 'roadmap',
+        styles: themeToApply === 'dark' ? ROUTEWISE_DARK_MAP_STYLE : undefined,
         disableDefaultUI: false,
         zoomControl: false, // Powered by custom toolbar
         mapTypeControl: false, // Powered by custom toolbar
@@ -611,7 +625,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   const handleThemeChange = (theme: MapThemeType) => {
     setCurrentTheme(theme);
+    currentThemeRef.current = theme;
     setShowThemeMenu(false);
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('vazhikatti_map_theme', theme);
+      } catch {}
+    }
 
     if (!mapInstanceRef.current) return;
 
@@ -829,8 +850,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     ? 'text-cyan-400 bg-slate-800' 
                     : 'text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700'
                 }`}
-                title="Change Map View Type"
-                aria-label="Toggle map layer style"
+                title="Change Map Style (White / Dark / Satellite)"
+                aria-label="Toggle map style"
               >
                 <Layers className="w-3.5 h-3.5" />
               </button>
@@ -838,34 +859,46 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
               {/* Map Type Dropdown */}
               {showThemeMenu && (
                 <div 
-                  className="absolute right-10 top-0 w-36 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl py-1 text-xs text-slate-200 z-30"
+                  className="absolute right-10 top-0 w-44 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-xl shadow-2xl py-1 text-xs text-slate-200 z-30"
                   onMouseLeave={() => setShowThemeMenu(false)}
                 >
-                  <button
-                    onClick={() => handleThemeChange('dark')}
-                    className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 transition ${
-                      currentTheme === 'dark' ? 'text-cyan-400 font-bold' : ''
-                    }`}
-                  >
-                    <span>RouteWise Dark</span>
-                    {currentTheme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
-                  </button>
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 mb-1">
+                    Map Style
+                  </div>
                   <button
                     onClick={() => handleThemeChange('roadmap')}
                     className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 transition ${
-                      currentTheme === 'roadmap' ? 'text-cyan-400 font-bold' : ''
+                      currentTheme === 'roadmap' ? 'text-emerald-400 font-bold bg-slate-800/50' : 'text-slate-300'
                     }`}
                   >
-                    <span>Standard Road</span>
-                    {currentTheme === 'roadmap' && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
+                    <span className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-400 inline-block shadow-sm" />
+                      <span>White (Default)</span>
+                    </span>
+                    {currentTheme === 'roadmap' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+                  <button
+                    onClick={() => handleThemeChange('dark')}
+                    className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 transition ${
+                      currentTheme === 'dark' ? 'text-indigo-400 font-bold bg-slate-800/50' : 'text-slate-300'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-slate-900 border border-indigo-400 inline-block" />
+                      <span>Dark Theme</span>
+                    </span>
+                    {currentTheme === 'dark' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
                   </button>
                   <button
                     onClick={() => handleThemeChange('satellite')}
                     className={`w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 transition ${
-                      currentTheme === 'satellite' ? 'text-cyan-400 font-bold' : ''
+                      currentTheme === 'satellite' ? 'text-cyan-400 font-bold bg-slate-800/50' : 'text-slate-300'
                     }`}
                   >
-                    <span>Satellite Hybrid</span>
+                    <span className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-700 border border-emerald-400 inline-block" />
+                      <span>Satellite View</span>
+                    </span>
                     {currentTheme === 'satellite' && <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />}
                   </button>
                 </div>
