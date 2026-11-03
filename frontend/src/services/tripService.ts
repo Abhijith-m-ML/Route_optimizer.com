@@ -476,14 +476,15 @@ export async function createSharedTrip(params: {
   }
 
   const origin = window.location.origin;
-  const pathname = window.location.pathname;
 
   let finalShareUrl: string;
   if (generatedShareId) {
-    // Include both shareId and fallback trip b64 for resilience
-    finalShareUrl = `${origin}${pathname}#/dashboard?share=${generatedShareId}&trip=${fallbackB64}`;
+    // Clean short URL format: https://vazhikatti-route.vercel.app/s/Ab12Xy
+    finalShareUrl = `${origin}/s/${generatedShareId}`;
+  } else if (fallbackB64) {
+    finalShareUrl = `${origin}/s/preview?trip=${fallbackB64}`;
   } else {
-    finalShareUrl = `${origin}${pathname}#/dashboard?trip=${fallbackB64}`;
+    finalShareUrl = `${origin}/dashboard`;
   }
 
   return {
@@ -498,9 +499,12 @@ export async function createSharedTrip(params: {
  * Fetches shared trip preview record by shareId from backend API
  */
 export async function fetchSharedTrip(shareId: string): Promise<SharedTripData | null> {
+  const cleanId = (shareId || '').trim();
+  if (!cleanId) return null;
+
   for (const backendUrl of getBackendCandidateUrls()) {
     try {
-      const res = await fetch(`${backendUrl}/api/trips/share/${shareId}`);
+      const res = await fetch(`${backendUrl}/api/trips/share/${encodeURIComponent(cleanId)}`);
       if (res.ok) {
         const json = await res.json();
         if (json.share) {
@@ -862,7 +866,6 @@ export async function createTripCollectionShare(params: {
   }
 
   const origin = window.location.origin;
-  const pathname = window.location.pathname;
 
   let fallbackB64 = '';
   if (stops && stops.length > 0) {
@@ -873,9 +876,12 @@ export async function createTripCollectionShare(params: {
 
   let finalShareUrl: string;
   if (generatedShareId) {
-    finalShareUrl = `${origin}${pathname}#/dashboard?share=${generatedShareId}${fallbackB64 ? `&trip=${fallbackB64}` : ''}`;
+    // Clean short URL format: https://vazhikatti-route.vercel.app/s/Ab12Xy
+    finalShareUrl = `${origin}/s/${generatedShareId}`;
+  } else if (fallbackB64) {
+    finalShareUrl = `${origin}/s/preview?trip=${fallbackB64}`;
   } else {
-    finalShareUrl = `${origin}${pathname}#/dashboard?trip=${fallbackB64}`;
+    finalShareUrl = `${origin}/dashboard`;
   }
 
   return {

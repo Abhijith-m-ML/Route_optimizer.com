@@ -1715,7 +1715,22 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No destinations found to share.' });
     }
 
-    const shareId = 'shr_' + crypto.randomBytes(6).toString('hex');
+    // Generate unique, clean alphanumeric short share code (e.g. "Ab12Xy")
+    const generateShortShareCode = (len = 6): string => {
+      const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const bytes = crypto.randomBytes(len);
+      let code = '';
+      for (let i = 0; i < len; i++) {
+        code += chars[bytes[i] % chars.length];
+      }
+      return code;
+    };
+
+    let shareId = generateShortShareCode(6);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (!sharedTripsMap.has(shareId)) break;
+      shareId = generateShortShareCode(attempt > 10 ? 8 : 6);
+    }
     const newRecord: SharedTripRecord = {
       shareId,
       title: finalTitle,
@@ -1758,6 +1773,35 @@ app.get('/api/trips/share/:shareId', (req: Request, res: Response) => {
 
   if (!record) {
     return res.status(404).json({ success: false, error: 'Shared destination list not found or expired.' });
+  }
+
+  return res.json({
+    success: true,
+    share: {
+      shareId: record.shareId,
+      title: record.title,
+      tripId: record.tripId,
+      tripName: record.tripName || record.title,
+      isAllTrips: record.isAllTrips || false,
+      trips: record.trips,
+      selectedState: record.selectedState,
+      stops: record.stops,
+      travelMode: record.travelMode,
+      ownerName: record.ownerName,
+      totalDestinations: record.totalDestinations,
+      createdAt: record.createdAt,
+    },
+  });
+});
+
+// GET /api/s/:shareId - Alias endpoint for short share code lookups
+app.get('/api/s/:shareId', (req: Request, res: Response) => {
+  const rawId = req.params.shareId;
+  const shareId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const record = sharedTripsMap.get(shareId);
+
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'Shared trip not found or expired.' });
   }
 
   return res.json({

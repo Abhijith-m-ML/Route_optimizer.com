@@ -107,8 +107,22 @@ export const DashboardPage: React.FC = () => {
     setIsOnboardingOpen(false);
   };
 
-  // Check URL for shared trip parameters
+  // Check URL for shared trip parameters or pending shared trip from /s/:shareId
   useEffect(() => {
+    // 1. Check for pending shared trip from /s/:shareId
+    const pendingJson = localStorage.getItem('vazhikatti_pending_shared_trip');
+    if (pendingJson) {
+      try {
+        const pending = JSON.parse(pendingJson);
+        localStorage.removeItem('vazhikatti_pending_shared_trip');
+        if (pending && Array.isArray(pending.stops) && pending.stops.length > 0) {
+          handleImportSharedDestinations(pending.stops, pending.tripName || pending.title || 'Shared Trip');
+          return;
+        }
+      } catch {}
+    }
+
+    // 2. Legacy URL search parameter check
     const hash = window.location.hash || '';
     const queryPart = hash.includes('?') ? hash.split('?')[1] : window.location.search.replace(/^\?/, '');
     const searchParams = new URLSearchParams(queryPart);

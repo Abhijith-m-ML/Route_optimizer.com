@@ -1,5 +1,5 @@
-import React from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { PublicOnlyRoute } from './components/Auth/PublicOnlyRoute';
@@ -7,12 +7,26 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { SharedTripPage } from './pages/SharedTripPage';
 
 export const App: React.FC = () => {
+  // Support legacy hash links like #/s/Ab12Xy or #/dashboard
+  useEffect(() => {
+    if (window.location.hash) {
+      const hashContent = window.location.hash.replace(/^#\/?/, '/');
+      if (hashContent) {
+        window.history.replaceState(null, '', hashContent);
+      }
+    }
+  }, []);
+
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Public Short Share Link Route */}
+          <Route path="/s/:shareId" element={<SharedTripPage />} />
+
           {/* Public Auth Routes (Redirects to dashboard if already authenticated) */}
           <Route
             path="/login"
@@ -39,7 +53,7 @@ export const App: React.FC = () => {
             }
           />
 
-          {/* Protected Dashboard Route */}
+          {/* Dashboard Route */}
           <Route
             path="/dashboard"
             element={
@@ -54,7 +68,7 @@ export const App: React.FC = () => {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 
