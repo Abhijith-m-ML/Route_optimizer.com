@@ -25,12 +25,12 @@ function test(name, fn) {
 }
 
 // 1. EditProfileModal implementation
-test('EditProfileModal provides image change, upload, URL, and remove photo options', () => {
+test('EditProfileModal provides streamlined photo upload and removal without URL clutter', () => {
   const modalCode = fs.readFileSync(path.join(srcDir, 'components', 'EditProfileModal.tsx'), 'utf-8');
   assert(modalCode.includes('handleFileChange') && modalCode.includes('type="file"'), 'File upload handler exists');
   assert(modalCode.includes('canvas.toDataURL'), 'Client-side image compression to lightweight data URL implemented');
   assert(modalCode.includes('handleRemovePhoto') && modalCode.includes('setPhotoURL(null)'), 'Remove photo option exists');
-  assert(modalCode.includes('handleApplyUrl') || modalCode.includes('urlInputValue'), 'Image URL paste option exists');
+  assert(!modalCode.includes('Paste URL') && !modalCode.includes('handleApplyUrl'), 'Paste URL button and apply input bar removed cleanly');
   assert(modalCode.includes('displayName') && modalCode.includes('updateProfile'), 'Display name editing connects to updateProfile');
 });
 
@@ -71,3 +71,4 @@ if (failures === 0) {
   console.log('===========================================================');
   process.exit(1);
 }
+

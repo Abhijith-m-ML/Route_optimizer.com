@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, Camera, Upload, Trash2, Link as LinkIcon, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Camera, Upload, Trash2, Check, AlertCircle, Loader2 } from 'lucide-react';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -18,8 +18,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   const [displayName, setDisplayName] = useState('');
   const [photoURL, setPhotoURL] = useState<string | null>(null);
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [urlInputValue, setUrlInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,8 +26,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     if (isOpen && user) {
       setDisplayName(user.displayName || '');
       setPhotoURL(user.photoURL || null);
-      setUrlInputValue(user.photoURL && !user.photoURL.startsWith('data:') ? user.photoURL : '');
-      setShowUrlInput(false);
       setError(null);
     }
   }, [isOpen, user]);
@@ -81,7 +77,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           ctx.drawImage(img, 0, 0, width, height);
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
           setPhotoURL(compressedDataUrl);
-          setShowUrlInput(false);
         }
       };
       img.src = event.target?.result as string;
@@ -91,19 +86,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     e.target.value = '';
   };
 
-  const handleApplyUrl = () => {
-    const trimmed = urlInputValue.trim();
-    if (!trimmed) {
-      setError('Please enter a valid image URL.');
-      return;
-    }
-    setPhotoURL(trimmed);
-    setError(null);
-  };
-
   const handleRemovePhoto = () => {
     setPhotoURL(null);
-    setUrlInputValue('');
     setError(null);
   };
 
@@ -230,20 +214,10 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition shadow-sm"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Upload Photo</span>
-                </button>
-
-                {/* URL Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowUrlInput(!showUrlInput)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition"
-                >
-                  <LinkIcon className="w-3.5 h-3.5" />
-                  <span>Paste URL</span>
                 </button>
 
                 {/* Remove Photo Button */}
@@ -251,7 +225,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   <button
                     type="button"
                     onClick={handleRemovePhoto}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/25 text-xs font-semibold transition"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/25 text-xs font-semibold transition"
                     title="Remove custom photo and use letter avatar"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -259,26 +233,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   </button>
                 )}
               </div>
-
-              {/* Optional URL input field */}
-              {showUrlInput && (
-                <div className="flex items-center gap-1.5 mt-2">
-                  <input
-                    type="url"
-                    value={urlInputValue}
-                    onChange={(e) => setUrlInputValue(e.target.value)}
-                    placeholder="https://example.com/avatar.jpg"
-                    className="flex-1 bg-slate-900 border border-indigo-500/50 rounded-xl px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyUrl}
-                    className="px-2.5 py-1 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 transition"
-                  >
-                    Apply
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
@@ -345,3 +299,4 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     </div>
   );
 };
+
