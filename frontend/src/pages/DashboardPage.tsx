@@ -165,7 +165,9 @@ export const DashboardPage: React.FC = () => {
 
   const travelMode: TravelMode = activeTrip?.travelMode || 'DRIVING';
   const tripTitle: string = activeTripId === 'ALL' ? 'All Trips' : activeTrip?.name || 'All Trips';
-  const isOptimized: boolean = activeTrip?.isOptimized || false;
+  const isOptimized: boolean = activeTrip
+    ? Boolean(activeTrip.isOptimized)
+    : trips.length > 0 && trips.some((t) => (t.stops?.length || 0) >= 2 && Boolean(t.isOptimized));
 
   // Live route metrics
   const metrics = useMemo(() => {
@@ -349,15 +351,38 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleMoveUp = (index: number) => {
-    if (!activeTrip || index === 0) return;
-    const reordered = [...activeTrip.stops];
-    const temp = reordered[index - 1];
-    reordered[index - 1] = reordered[index];
-    reordered[index] = temp;
+    if (activeTrip) {
+      if (index === 0) return;
+      const reordered = [...activeTrip.stops];
+      const temp = reordered[index - 1];
+      reordered[index - 1] = reordered[index];
+      reordered[index] = temp;
 
-    const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+      const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+      persistTripUpdates({
+        ...activeTrip,
+        stops: updated.enrichedStops,
+        isOptimized: false,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (index <= 0 || index >= currentStops.length) return;
+    const targetStop = currentStops[index];
+    const ownerTrip = trips.find((t) => t.stops?.some((s) => s.id === targetStop.id));
+    if (!ownerTrip) return;
+    const idxInTrip = ownerTrip.stops.findIndex((s) => s.id === targetStop.id);
+    if (idxInTrip <= 0) return;
+
+    const reordered = [...ownerTrip.stops];
+    const temp = reordered[idxInTrip - 1];
+    reordered[idxInTrip - 1] = reordered[idxInTrip];
+    reordered[idxInTrip] = temp;
+
+    const updated = calculateRouteMetrics(reordered, ownerTrip.travelMode);
     persistTripUpdates({
-      ...activeTrip,
+      ...ownerTrip,
       stops: updated.enrichedStops,
       isOptimized: false,
       updatedAt: new Date().toISOString(),
@@ -365,15 +390,38 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleMoveDown = (index: number) => {
-    if (!activeTrip || index === activeTrip.stops.length - 1) return;
-    const reordered = [...activeTrip.stops];
-    const temp = reordered[index + 1];
-    reordered[index + 1] = reordered[index];
-    reordered[index] = temp;
+    if (activeTrip) {
+      if (index === activeTrip.stops.length - 1) return;
+      const reordered = [...activeTrip.stops];
+      const temp = reordered[index + 1];
+      reordered[index + 1] = reordered[index];
+      reordered[index] = temp;
 
-    const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+      const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+      persistTripUpdates({
+        ...activeTrip,
+        stops: updated.enrichedStops,
+        isOptimized: false,
+        updatedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    if (index < 0 || index >= currentStops.length - 1) return;
+    const targetStop = currentStops[index];
+    const ownerTrip = trips.find((t) => t.stops?.some((s) => s.id === targetStop.id));
+    if (!ownerTrip) return;
+    const idxInTrip = ownerTrip.stops.findIndex((s) => s.id === targetStop.id);
+    if (idxInTrip < 0 || idxInTrip >= ownerTrip.stops.length - 1) return;
+
+    const reordered = [...ownerTrip.stops];
+    const temp = reordered[idxInTrip + 1];
+    reordered[idxInTrip + 1] = reordered[idxInTrip];
+    reordered[idxInTrip] = temp;
+
+    const updated = calculateRouteMetrics(reordered, ownerTrip.travelMode);
     persistTripUpdates({
-      ...activeTrip,
+      ...ownerTrip,
       stops: updated.enrichedStops,
       isOptimized: false,
       updatedAt: new Date().toISOString(),
@@ -381,14 +429,45 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleSetAsStart = (index: number) => {
-    if (!activeTrip || index <= 0 || index >= activeTrip.stops.length) return;
-    const reordered = [...activeTrip.stops];
-    const [chosenStart] = reordered.splice(index, 1);
+    if (activeTrip) {
+      if (index <= 0 || index >= activeTrip.stops.length) return;
+      const reordered = [...activeTrip.stops];
+      const [chosenStart] = reordered.splice(index, 1);
+      reordered.unshift(chosenStart);
+
+      const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+      persistTripUpdates({
+        ...activeTrip,
+        stops: updated.enrichedStops,
+        isOptimized: false,
+        updatedAt: new Date().toISOString(),
+      });
+
+      showToast({
+        type: 'success',
+        title: 'Starting Place Set',
+        description: `"${chosenStart.name}" is now the starting place for "${activeTrip.name}".`,
+      });
+      return;
+    }
+
+    if (index < 0 || index >= currentStops.length) return;
+    const targetStop = currentStops[index];
+    if (!targetStop) return;
+
+    const ownerTrip = trips.find((t) => t.stops?.some((s) => s.id === targetStop.id));
+    if (!ownerTrip) return;
+
+    const stopIdxInTrip = ownerTrip.stops.findIndex((s) => s.id === targetStop.id);
+    if (stopIdxInTrip <= 0) return;
+
+    const reordered = [...ownerTrip.stops];
+    const [chosenStart] = reordered.splice(stopIdxInTrip, 1);
     reordered.unshift(chosenStart);
 
-    const updated = calculateRouteMetrics(reordered, activeTrip.travelMode);
+    const updated = calculateRouteMetrics(reordered, ownerTrip.travelMode);
     persistTripUpdates({
-      ...activeTrip,
+      ...ownerTrip,
       stops: updated.enrichedStops,
       isOptimized: false,
       updatedAt: new Date().toISOString(),
@@ -397,24 +476,43 @@ export const DashboardPage: React.FC = () => {
     showToast({
       type: 'success',
       title: 'Starting Place Set',
-      description: `"${chosenStart.name}" is now the starting place for "${activeTrip.name}".`,
+      description: `"${chosenStart.name}" is now the starting place for "${ownerTrip.name}".`,
     });
   };
 
   const handleSetAsStartById = (id: string) => {
-    if (!activeTrip) return;
-    const idx = activeTrip.stops.findIndex((s) => s.id === id);
+    const ownerTrip = activeTrip || trips.find((t) => t.stops?.some((s) => s.id === id));
+    if (!ownerTrip) return;
+    const idx = ownerTrip.stops.findIndex((s) => s.id === id);
     if (idx > 0) {
-      handleSetAsStart(idx);
+      const reordered = [...ownerTrip.stops];
+      const [chosenStart] = reordered.splice(idx, 1);
+      reordered.unshift(chosenStart);
+
+      const updated = calculateRouteMetrics(reordered, ownerTrip.travelMode);
+      persistTripUpdates({
+        ...ownerTrip,
+        stops: updated.enrichedStops,
+        isOptimized: false,
+        updatedAt: new Date().toISOString(),
+      });
+
+      showToast({
+        type: 'success',
+        title: 'Starting Place Set',
+        description: `"${chosenStart.name}" is now the starting place for "${ownerTrip.name}".`,
+      });
     }
   };
 
   const handleRenameStop = (id: string, newName: string) => {
-    if (!activeTrip) return;
     const trimmed = newName.trim();
     if (!trimmed) return;
 
-    const updatedStops = activeTrip.stops.map((s) => {
+    const ownerTrip = activeTrip || trips.find((t) => t.stops?.some((s) => s.id === id));
+    if (!ownerTrip) return;
+
+    const updatedStops = ownerTrip.stops.map((s) => {
       if (s.id === id) {
         return {
           ...s,
@@ -427,9 +525,9 @@ export const DashboardPage: React.FC = () => {
       return s;
     });
 
-    const updated = calculateRouteMetrics(updatedStops, activeTrip.travelMode);
+    const updated = calculateRouteMetrics(updatedStops, ownerTrip.travelMode);
     persistTripUpdates({
-      ...activeTrip,
+      ...ownerTrip,
       stops: updated.enrichedStops,
       updatedAt: new Date().toISOString(),
     });
@@ -442,44 +540,146 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleUpdateDuration = (id: string, minutes: number) => {
-    if (!activeTrip) return;
-    const updatedStops = activeTrip.stops.map((s) =>
+    const ownerTrip = activeTrip || trips.find((t) => t.stops?.some((s) => s.id === id));
+    if (!ownerTrip) return;
+    const updatedStops = ownerTrip.stops.map((s) =>
       s.id === id ? { ...s, customDurationMinutes: minutes } : s
     );
     persistTripUpdates({
-      ...activeTrip,
+      ...ownerTrip,
       stops: updatedStops,
       updatedAt: new Date().toISOString(),
     });
   };
 
   const handleOptimizeRoute = () => {
-    if (!activeTrip || activeTrip.stops.length < 2) return;
-    const result = optimizeRouteStops(activeTrip.stops, activeTrip.travelMode);
-    persistTripUpdates({
-      ...activeTrip,
-      stops: result.optimizedStops,
-      isOptimized: true,
-      updatedAt: new Date().toISOString(),
+    if (activeTrip) {
+      if (activeTrip.stops.length < 2) {
+        showToast({
+          type: 'warning',
+          title: 'Cannot Optimize',
+          description: 'Add at least 2 destinations to optimize your route.',
+        });
+        return;
+      }
+      const result = optimizeRouteStops(activeTrip.stops, activeTrip.travelMode);
+      persistTripUpdates({
+        ...activeTrip,
+        stops: result.optimizedStops,
+        isOptimized: true,
+        updatedAt: new Date().toISOString(),
+      });
+
+      showToast({
+        type: 'success',
+        title: 'Route Optimized!',
+        description: `Saved ~${result.savedDistanceKm} km and ~${result.savedDurationMinutes} mins in "${activeTrip.name}".`,
+      });
+      return;
+    }
+
+    // In All Trips view: find trips with at least 2 stops
+    const eligibleTrips = trips.filter((t) => (t.stops?.length || 0) >= 2);
+    if (eligibleTrips.length === 0) {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Optimize',
+        description: 'Add at least 2 destinations to a trip to optimize your route.',
+      });
+      return;
+    }
+
+    let totalSavedKm = 0;
+    let totalSavedMins = 0;
+    let lastTripName = '';
+    const nextTrips = trips.map((t) => {
+      if ((t.stops?.length || 0) < 2) return t;
+      const result = optimizeRouteStops(t.stops, t.travelMode);
+      totalSavedKm += Number(result.savedDistanceKm) || 0;
+      totalSavedMins += Number(result.savedDurationMinutes) || 0;
+      lastTripName = t.name;
+      return {
+        ...t,
+        stops: result.optimizedStops,
+        isOptimized: true,
+        updatedAt: new Date().toISOString(),
+      };
     });
+
+    setTrips(nextTrips);
+    saveLocalTrips(nextTrips, userId);
+    for (const ut of nextTrips) {
+      if ((ut.stops?.length || 0) >= 2) {
+        updateUserTrip(ut.id, { stops: ut.stops, isOptimized: true }, userId, user?.token);
+      }
+    }
 
     showToast({
       type: 'success',
       title: 'Route Optimized!',
-      description: `Saved ~${result.savedDistanceKm} km and ~${result.savedDurationMinutes} mins in "${activeTrip.name}".`,
+      description:
+        eligibleTrips.length === 1
+          ? `Saved ~${totalSavedKm.toFixed(1)} km and ~${totalSavedMins} mins in "${lastTripName}".`
+          : `Optimized ${eligibleTrips.length} trips! Saved ~${totalSavedKm.toFixed(1)} km and ~${totalSavedMins} mins.`,
     });
   };
 
   const handleReverseRoute = () => {
-    if (!activeTrip || activeTrip.stops.length < 2) return;
-    const reversed = [...activeTrip.stops].reverse();
-    const updated = calculateRouteMetrics(reversed, activeTrip.travelMode);
-    persistTripUpdates({
-      ...activeTrip,
-      stops: updated.enrichedStops,
-      isOptimized: false,
-      updatedAt: new Date().toISOString(),
+    if (activeTrip) {
+      if (activeTrip.stops.length < 2) {
+        showToast({
+          type: 'warning',
+          title: 'Cannot Invert Route',
+          description: 'Add at least 2 destinations to invert the route.',
+        });
+        return;
+      }
+      const reversed = [...activeTrip.stops].reverse();
+      const updated = calculateRouteMetrics(reversed, activeTrip.travelMode);
+      persistTripUpdates({
+        ...activeTrip,
+        stops: updated.enrichedStops,
+        isOptimized: false,
+        updatedAt: new Date().toISOString(),
+      });
+
+      showToast({
+        type: 'info',
+        title: 'Route Inverted',
+        description: 'Reversed starting and ending destinations.',
+      });
+      return;
+    }
+
+    const eligibleTrips = trips.filter((t) => (t.stops?.length || 0) >= 2);
+    if (eligibleTrips.length === 0) {
+      showToast({
+        type: 'warning',
+        title: 'Cannot Invert Route',
+        description: 'Add at least 2 destinations to invert the route.',
+      });
+      return;
+    }
+
+    const nextTrips = trips.map((t) => {
+      if ((t.stops?.length || 0) < 2) return t;
+      const reversed = [...t.stops].reverse();
+      const updated = calculateRouteMetrics(reversed, t.travelMode);
+      return {
+        ...t,
+        stops: updated.enrichedStops,
+        isOptimized: false,
+        updatedAt: new Date().toISOString(),
+      };
     });
+
+    setTrips(nextTrips);
+    saveLocalTrips(nextTrips, userId);
+    for (const ut of nextTrips) {
+      if ((ut.stops?.length || 0) >= 2) {
+        updateUserTrip(ut.id, { stops: ut.stops, isOptimized: false }, userId, user?.token);
+      }
+    }
 
     showToast({
       type: 'info',
