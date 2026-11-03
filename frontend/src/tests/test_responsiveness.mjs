@@ -80,17 +80,18 @@ assert(
   'Dashboard passes tripTitle and onUpdateTitle to Sidebar for mobile title editing'
 );
 
-// 4. Verify Sidebar.tsx mobile itinerary banner
-console.log('\nTest 4: Sidebar.tsx Mobile Itinerary Title Bar');
+// 4. Verify Sidebar.tsx clean mobile layout (no redundant itinerary title banner)
+console.log('\nTest 4: Sidebar.tsx Clean Mobile Layout');
 const sidebarCode = fs.readFileSync(path.join(srcDir, 'components', 'Sidebar', 'Sidebar.tsx'), 'utf-8');
 
 assert(
-  sidebarCode.includes('md:hidden') && sidebarCode.includes('Itinerary'),
-  'Sidebar contains a dedicated mobile itinerary title banner visible only on screens <md'
+  !sidebarCode.includes('text-[10px] font-bold uppercase tracking-wider text-indigo-400 block') &&
+  !sidebarCode.includes('Itinerary'),
+  'Sidebar removes redundant mobile itinerary title banner to maximize screen real estate'
 );
 assert(
-  sidebarCode.includes('onUpdateTitle') && sidebarCode.includes('isEditingTitle'),
-  'Mobile users can rename their trip itinerary directly in the Trip Plan tab'
+  sidebarCode.includes('TripSelector') && sidebarCode.includes('View Route on Interactive Map'),
+  'Sidebar retains TripSelector and map navigation controls cleanly'
 );
 
 console.log('===========================================================');

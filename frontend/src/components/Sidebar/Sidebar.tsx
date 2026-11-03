@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { SearchBox } from './SearchBox';
 import { RouteOptimizer } from './RouteOptimizer';
 import { DestinationList } from './DestinationList';
 import { WelcomeCard } from './WelcomeCard';
 import { TripSelector } from '../Trips/TripSelector';
 import type { Destination, RouteMetrics, SelectedStop, TravelMode, TripCollection } from '../../types';
-import { Info, Edit3, Check, Route, Map as MapIcon } from 'lucide-react';
+import { Info, Route, Map as MapIcon } from 'lucide-react';
 
 interface SidebarProps {
   tripTitle?: string;
@@ -39,8 +39,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  tripTitle,
-  onUpdateTitle,
+  tripTitle: _tripTitle,
+  onUpdateTitle: _onUpdateTitle,
   stops,
   metrics,
   travelMode,
@@ -68,74 +68,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const selectedIds = stops.map((s) => s.id);
 
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [tempTitle, setTempTitle] = useState(tripTitle || '');
-
-  const handleTitleSubmit = () => {
-    if (tempTitle.trim() && onUpdateTitle) {
-      onUpdateTitle(tempTitle.trim());
-    } else if (tripTitle) {
-      setTempTitle(tripTitle);
-    }
-    setIsEditingTitle(false);
-  };
-
   return (
     <aside className="w-full h-full bg-slate-900/60 backdrop-blur-md flex flex-col border-r border-slate-800/80 overflow-hidden">
       {/* Scrollable Container */}
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 md:p-5 space-y-4">
-        {/* Mobile-Only Trip Title Bar */}
-        {tripTitle && (
-          <div className="md:hidden bg-slate-900/90 rounded-2xl p-3 border border-slate-800 flex items-center justify-between gap-3 shadow-md">
-            <div className="min-w-0 flex-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 block">
-                Itinerary
-              </span>
-              {isEditingTitle && onUpdateTitle ? (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <input
-                    type="text"
-                    value={tempTitle}
-                    onChange={(e) => setTempTitle(e.target.value)}
-                    onBlur={handleTitleSubmit}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleTitleSubmit();
-                      if (e.key === 'Escape') {
-                        setTempTitle(tripTitle);
-                        setIsEditingTitle(false);
-                      }
-                    }}
-                    autoFocus
-                    className="bg-slate-800 text-white font-semibold text-xs rounded-lg px-2 py-1 border border-indigo-500 focus:outline-none w-full"
-                  />
-                  <button
-                    onClick={handleTitleSubmit}
-                    className="p-1 bg-indigo-600 text-white rounded-lg"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    if (onUpdateTitle) {
-                      setTempTitle(tripTitle);
-                      setIsEditingTitle(true);
-                    }
-                  }}
-                  className="flex items-center space-x-1.5 text-left text-xs font-bold text-white hover:text-indigo-300 transition group max-w-full mt-0.5"
-                >
-                  <span className="truncate">{tripTitle}</span>
-                  {onUpdateTitle && <Edit3 className="w-3 h-3 text-slate-500 group-hover:text-indigo-400 flex-shrink-0" />}
-                </button>
-              )}
-            </div>
-            <span className="text-[11px] font-semibold text-slate-300 bg-slate-800 px-2 py-1 rounded-xl border border-slate-700 whitespace-nowrap flex-shrink-0">
-              {stops.length} stop{stops.length === 1 ? '' : 's'}
-            </span>
-          </div>
-        )}
-
         {/* Main Content: Welcome Card for 0 stops or Active Route Planner for 1+ stops */}
         {stops.length === 0 ? (
           <WelcomeCard
