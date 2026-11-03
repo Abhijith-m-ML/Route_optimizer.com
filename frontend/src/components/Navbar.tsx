@@ -275,9 +275,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* User Account / Profile Button */}
+          {/* User Account / Profile Button (Hidden on Mobile, Available on Desktop & in Mobile Drawer) */}
           {user ? (
-            <div className="relative flex-shrink-0">
+            <div className="hidden sm:block relative flex-shrink-0">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="flex items-center space-x-1.5 h-8 sm:h-9 md:h-10 p-0.5 sm:p-1 md:px-2 rounded-xl hover:bg-slate-800/70 active:bg-slate-700 border border-transparent hover:border-slate-700/60 transition group"
@@ -352,7 +352,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           ) : (
             <Link
               to="/login"
-              className="flex items-center space-x-1 sm:space-x-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white h-8 sm:h-9 md:h-10 px-2 sm:px-3 rounded-xl border border-slate-700 transition"
+              className="hidden sm:flex items-center space-x-1 sm:space-x-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white h-8 sm:h-9 md:h-10 px-2 sm:px-3 rounded-xl border border-slate-700 transition"
             >
               <UserIcon className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Sign In</span>
