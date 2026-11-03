@@ -153,10 +153,7 @@ export const SignupPage: React.FC = () => {
             </div>
             <div className="text-left">
               <span className="font-extrabold text-2xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                RouteWise
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider ml-1.5 px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Mumbai
+                Vazhikatti
               </span>
             </div>
           </Link>
@@ -165,7 +162,7 @@ export const SignupPage: React.FC = () => {
             Create your account
           </h2>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-400">
-            Plan, optimize, and save your Mumbai journeys.
+            Plan, optimize, and save your journeys.
           </p>
         </div>
 
@@ -199,7 +196,7 @@ export const SignupPage: React.FC = () => {
                     setUsername(e.target.value);
                     if (errors.username) setErrors((prev) => ({ ...prev, username: undefined }));
                   }}
-                  placeholder="e.g. MumbaiExplorer (optional)"
+                  placeholder="e.g. Explorer (optional)"
                   className={`w-full bg-slate-950/80 text-sm text-slate-100 placeholder-slate-500 rounded-xl pl-10 pr-4 py-2.5 border transition focus:outline-none focus:ring-2 ${
                     errors.username
                       ? 'border-rose-500/80 focus:ring-rose-500/40'

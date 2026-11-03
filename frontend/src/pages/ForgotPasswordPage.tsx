@@ -68,10 +68,7 @@ export const ForgotPasswordPage: React.FC = () => {
             </div>
             <div className="text-left">
               <span className="font-extrabold text-2xl tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                RouteWise
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider ml-1.5 px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Mumbai
+                Vazhikatti
               </span>
             </div>
           </Link>

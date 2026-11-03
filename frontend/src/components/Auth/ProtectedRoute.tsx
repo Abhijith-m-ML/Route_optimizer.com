@@ -15,8 +15,8 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
             <Compass className="w-7 h-7 text-cyan-400 animate-[spin_4s_linear_infinite]" />
           </div>
         </div>
-        <p className="text-sm font-semibold tracking-wide text-slate-300">Verifying RouteWise Session...</p>
-        <p className="text-xs text-slate-500 mt-1">Preparing your Mumbai travel dashboard</p>
+        <p className="text-sm font-semibold tracking-wide text-slate-300">Verifying Vazhikatti Session...</p>
+        <p className="text-xs text-slate-500 mt-1">Preparing your travel dashboard</p>
       </div>
     );
   }

@@ -15,7 +15,7 @@ export const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
             <Compass className="w-6 h-6 text-cyan-400 animate-[spin_4s_linear_infinite]" />
           </div>
         </div>
-        <p className="text-xs font-semibold tracking-wide text-slate-400">Loading RouteWise...</p>
+        <p className="text-xs font-semibold tracking-wide text-slate-400">Loading Vazhikatti...</p>
       </div>
     );
   }
