@@ -75,8 +75,9 @@ assert(navbarCode.includes('role="dialog"') && navbarCode.includes('aria-modal="
 assert(navbarCode.includes('animate-slide-in-left'), 'Drawer must have smooth slide-in animation');
 assert(navbarCode.includes('pt-safe') && navbarCode.includes('pb-safe'), 'Drawer must respect mobile safe-area insets');
 
-// Verify authentic menu items (no fake/nonfunctional items)
-assert(navbarCode.includes('Dashboard / Home'), 'Drawer includes Dashboard / Home');
+// Verify authentic menu items (no fake/nonfunctional items, redundant Dashboard / Home removed)
+assert(!navbarCode.includes('Dashboard / Home'), 'Drawer cleanly removes redundant Dashboard / Home link');
+assert(navbarCode.includes('EditProfileModal') && navbarCode.includes('Edit2'), 'Drawer profile card provides edit option to change name & avatar image');
 assert(navbarCode.includes('Interactive Map'), 'Drawer includes Interactive Map');
 assert(navbarCode.includes('Trip Plan'), 'Drawer includes Trip Plan');
 assert(navbarCode.includes('My Trips Collections'), 'Drawer includes My Trips Collections');

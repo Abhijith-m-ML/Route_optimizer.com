@@ -671,6 +671,7 @@ app.get('/', (_req: Request, res: Response) => {
       googleAuth: 'POST /api/auth/google',
       googleCallback: 'GET /api/auth/google/callback',
       me: 'GET /api/auth/me',
+      profile: 'PATCH /api/auth/profile',
       dashboard: 'GET /api/dashboard/summary',
       trips: '/api/trips',
       userTrips: '/api/user-trips',
@@ -1282,6 +1283,56 @@ app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) 
     },
   });
 });
+
+// Protected Route: Update user profile (display name and avatar picture)
+const handleProfileUpdate = async (req: AuthenticatedRequest, res: Response) => {
+  const user = req.user!;
+  const { displayName, picture, removePicture } = req.body || {};
+
+  if (displayName !== undefined && typeof displayName === 'string') {
+    const cleanName = displayName.trim();
+    if (cleanName.length > 0 && cleanName.length <= 100) {
+      user.displayName = cleanName;
+    }
+  }
+
+  if (removePicture === true || picture === null || picture === '') {
+    user.picture = undefined;
+    const dbUser: UserRecord = { ...user, picture: '__CLEAR__' };
+    user.updatedAt = new Date().toISOString();
+    usersMap.set(user.uid, user);
+    persistUsers(usersMap);
+    await saveUserToDb(dbUser).catch(err => console.warn('[RouteWise DB] Profile update error:', err.message));
+  } else if (picture !== undefined && typeof picture === 'string') {
+    user.picture = picture;
+    user.updatedAt = new Date().toISOString();
+    usersMap.set(user.uid, user);
+    persistUsers(usersMap);
+    await saveUserToDb(user).catch(err => console.warn('[RouteWise DB] Profile update error:', err.message));
+  } else {
+    user.updatedAt = new Date().toISOString();
+    usersMap.set(user.uid, user);
+    persistUsers(usersMap);
+    await saveUserToDb(user).catch(err => console.warn('[RouteWise DB] Profile update error:', err.message));
+  }
+
+  res.json({
+    success: true,
+    user: {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      username: user.username,
+      photoURL: user.picture || null,
+      authProvider: user.authProvider || (user.googleId ? 'google' : 'password'),
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    },
+  });
+};
+
+app.patch('/api/auth/profile', requireAuth, handleProfileUpdate);
+app.post('/api/auth/profile', requireAuth, handleProfileUpdate);
 
 // Protected Route: Dashboard summary requiring valid session/token
 app.get('/api/dashboard/summary', requireAuth, (req: AuthenticatedRequest, res: Response) => {

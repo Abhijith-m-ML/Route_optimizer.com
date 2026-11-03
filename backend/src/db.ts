@@ -215,7 +215,11 @@ export async function saveUserToDb(user: UserRecord): Promise<void> {
         password_hash = CASE WHEN EXCLUDED.password_hash != '' THEN EXCLUDED.password_hash ELSE users.password_hash END,
         updated_at = NOW(),
         google_id = COALESCE(EXCLUDED.google_id, users.google_id),
-        picture = COALESCE(EXCLUDED.picture, users.picture),
+        picture = CASE
+          WHEN EXCLUDED.picture = '__CLEAR__' THEN NULL
+          WHEN EXCLUDED.picture IS NOT NULL AND EXCLUDED.picture != '' THEN EXCLUDED.picture
+          ELSE users.picture
+        END,
         auth_provider = EXCLUDED.auth_provider,
         email_verified = EXCLUDED.email_verified
       `,

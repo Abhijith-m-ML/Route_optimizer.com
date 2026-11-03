@@ -12,6 +12,7 @@ import {
   getSavedDemoUser,
   clearDemoUser,
   verifyBackendSession,
+  updateUserProfile as apiUpdateUserProfile,
   type AuthUser,
 } from '../services/authService';
 import { clearGuestSessionData } from '../services/tripService';
@@ -26,6 +27,7 @@ export interface AuthContextType {
   loginDemo: () => Promise<AuthUser>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  updateProfile: (data: { displayName?: string; photoURL?: string | null }) => Promise<AuthUser>;
   formatAuthError: (error: unknown) => string;
 }
 
@@ -111,6 +113,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return requestPasswordReset(email);
   };
 
+  const updateProfile = async (data: { displayName?: string; photoURL?: string | null }) => {
+    const updatedUser = await apiUpdateUserProfile(data);
+    setUser(updatedUser);
+    return updatedUser;
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -121,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loginDemo,
     logout,
     resetPassword,
+    updateProfile,
     formatAuthError: getAuthErrorMessage,
   };
 

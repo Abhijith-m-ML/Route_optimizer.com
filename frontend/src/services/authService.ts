@@ -507,6 +507,80 @@ export async function signInWithGoogle(): Promise<AuthUser> {
 }
 
 /**
+ * Update current user profile (displayName and photoURL/picture)
+ */
+export async function updateUserProfile(data: {
+  displayName?: string;
+  photoURL?: string | null;
+}): Promise<AuthUser> {
+  const saved = getSavedDemoUser();
+
+  // If in demo mode
+  if (saved?.isDemo) {
+    const updated: AuthUser = {
+      ...saved,
+      displayName: data.displayName !== undefined ? data.displayName : saved.displayName,
+      photoURL: data.photoURL !== undefined ? data.photoURL : saved.photoURL,
+    };
+    saveDemoUser(updated);
+    return updated;
+  }
+
+  // Update Firebase profile if configured and user is signed in
+  if (isFirebaseConfigured && auth?.currentUser) {
+    try {
+      await updateProfile(auth.currentUser, {
+        displayName: data.displayName || undefined,
+        photoURL: data.photoURL === null ? '' : (data.photoURL || undefined),
+      });
+    } catch (err) {
+      console.warn('[Vazhikatti Auth] Firebase updateProfile warning:', err);
+    }
+  }
+
+  // Update central backend profile
+  const token = saved?.token;
+  if (token) {
+    try {
+      const res = await fetchWithBackendCandidates('/api/auth/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          displayName: data.displayName,
+          picture: data.photoURL,
+          removePicture: data.photoURL === null,
+        }),
+      });
+
+      const resData = await res.json().catch(() => null);
+      if (res.ok && resData?.user) {
+        const updated: AuthUser = {
+          ...saved,
+          displayName: resData.user.displayName || (data.displayName ?? saved.displayName),
+          photoURL: resData.user.photoURL ?? null,
+        };
+        saveDemoUser(updated);
+        return updated;
+      }
+    } catch (err) {
+      console.warn('[Vazhikatti Auth] Backend profile update warning:', err);
+    }
+  }
+
+  // Local fallback persistence
+  const updated: AuthUser = {
+    ...saved!,
+    displayName: data.displayName !== undefined ? data.displayName : (saved?.displayName || 'Traveler'),
+    photoURL: data.photoURL !== undefined ? data.photoURL : (saved?.photoURL || null),
+  };
+  saveDemoUser(updated);
+  return updated;
+}
+
+/**
  * Quick 1-click Demo Login helper
  */
 export async function quickDemoLogin(): Promise<AuthUser> {
