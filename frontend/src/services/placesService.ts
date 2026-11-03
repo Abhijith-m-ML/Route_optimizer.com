@@ -377,20 +377,47 @@ export async function searchPlaces(
 export async function reverseGeocodeCoords(
   lat: number,
   lng: number
-): Promise<{ address: string; city?: string; state?: string; stateCode?: string; country?: string }> {
+): Promise<{ address: string; placeName?: string; city?: string; state?: string; stateCode?: string; country?: string }> {
   try {
     await loadPlacesLibrary();
     if (window.google?.maps?.Geocoder) {
       const geocoder = new window.google.maps.Geocoder();
       const res = await geocoder.geocode({ location: { lat, lng } });
-      if (res.results && res.results[0]) {
+      if (res.results && res.results.length > 0) {
+        // 1. Look for a POI, establishment, or landmark across results
+        let extractedPlaceName: string | undefined;
+        for (const r of res.results) {
+          if (
+            r.types &&
+            r.types.some((t) =>
+              ['point_of_interest', 'establishment', 'premise', 'landmark', 'tourist_attraction'].includes(t)
+            )
+          ) {
+            const firstComp = r.address_components?.[0]?.long_name;
+            const formattedFirst = r.formatted_address?.split(',')?.[0]?.trim();
+            extractedPlaceName = firstComp || formattedFirst;
+            if (extractedPlaceName) break;
+          }
+        }
+
         const first = res.results[0];
         const parsed = parseAddressComponents(
           first.address_components as unknown as Array<Record<string, unknown>>,
           first.formatted_address
         );
+
+        if (!extractedPlaceName && first.address_components) {
+          const subloc = (first.address_components as any[]).find((c) =>
+            c.types?.includes('sublocality_level_1') ||
+            c.types?.includes('neighborhood') ||
+            c.types?.includes('route')
+          )?.long_name;
+          extractedPlaceName = subloc || parsed.city || first.formatted_address?.split(',')?.[0]?.trim();
+        }
+
         return {
           address: first.formatted_address,
+          placeName: extractedPlaceName || parsed.city,
           ...parsed,
         };
       }
@@ -451,6 +478,8 @@ export async function fetchPlaceDetails(
           id: `place_${place.id || cleanId}`,
           placeId: place.id || cleanId,
           name,
+          originalName: name,
+          isCustomName: false,
           category,
           description: formattedAddress,
           address: formattedAddress,
@@ -510,6 +539,8 @@ export async function fetchPlaceDetails(
           id: `place_${place.id || cleanId}`,
           placeId: place.id || cleanId,
           name,
+          originalName: name,
+          isCustomName: false,
           category,
           description: formattedAddress,
           address: formattedAddress,
@@ -564,6 +595,8 @@ export async function fetchPlaceDetails(
                 id: `place_${place.place_id || cleanId}`,
                 placeId: place.place_id || cleanId,
                 name,
+                originalName: name,
+                isCustomName: false,
                 category,
                 description: formattedAddress,
                 address: formattedAddress,

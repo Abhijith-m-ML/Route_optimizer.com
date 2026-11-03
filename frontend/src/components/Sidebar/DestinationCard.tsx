@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ChevronUp, 
   ChevronDown, 
@@ -7,7 +7,10 @@ import {
   Train,
   Footprints,
   MapPin,
-  Flag
+  Flag,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
 import type { SelectedStop, TravelMode } from '../../types';
 
@@ -20,6 +23,7 @@ interface DestinationCardProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
+  onRename?: (newName: string) => void;
   onSetAsStart?: () => void;
   onUpdateDuration?: (minutes: number) => void;
   travelMode: TravelMode;
@@ -34,11 +38,34 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onRename,
   onSetAsStart,
   travelMode,
 }) => {
   const isFirst = index === 0;
   const isLast = index === totalStops - 1;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [nameInput, setNameInput] = useState(stop.name);
+
+  useEffect(() => {
+    setNameInput(stop.name);
+  }, [stop.name]);
+
+  const handleSaveName = (e?: React.MouseEvent | React.FormEvent) => {
+    e?.stopPropagation();
+    const trimmed = nameInput.trim();
+    if (trimmed && trimmed !== stop.name && onRename) {
+      onRename(trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelName = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setNameInput(stop.name);
+    setIsEditing(false);
+  };
 
   const badgeColorClass = isFirst
     ? 'bg-emerald-500 text-white'
@@ -98,25 +125,96 @@ export const DestinationCard: React.FC<DestinationCardProps> = ({
 
           {/* Place Details */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-1.5">
-              <h4 className="font-bold text-xs sm:text-sm text-white truncate leading-tight group-hover:text-indigo-300 transition">
-                {stop.name}
-              </h4>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove();
-                }}
-                className="text-slate-400 hover:text-rose-400 active:text-rose-300 w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-800/80 active:bg-slate-800 transition flex-shrink-0"
-                title="Remove stop"
-                aria-label={`Remove ${stop.name}`}
+            {isEditing ? (
+              <div
+                className="flex items-center gap-1.5 w-full my-0.5"
+                onClick={(e) => e.stopPropagation()}
               >
-                <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-              </button>
-            </div>
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Escape') handleCancelName();
+                  }}
+                  autoFocus
+                  className="flex-1 bg-slate-800 text-white text-xs font-bold rounded-lg px-2 py-1 border border-indigo-500 focus:outline-none shadow-inner"
+                  placeholder="e.g. Home, Chai Spot..."
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition flex-shrink-0"
+                  title="Save name"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelName}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 text-slate-400 hover:text-white transition flex-shrink-0"
+                  title="Cancel"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <h4
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditing(true);
+                    }}
+                    className="font-bold text-xs sm:text-sm text-white truncate leading-tight group-hover:text-indigo-300 transition cursor-pointer"
+                    title="Click to rename place"
+                  >
+                    {stop.name}
+                  </h4>
+                  {onRename && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditing(true);
+                      }}
+                      className="text-slate-500 hover:text-indigo-300 transition p-0.5 rounded opacity-0 group-hover:opacity-100 flex-shrink-0"
+                      title="Rename place"
+                      aria-label={`Rename ${stop.name}`}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove();
+                  }}
+                  className="text-slate-400 hover:text-rose-400 active:text-rose-300 w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-800/80 active:bg-slate-800 transition flex-shrink-0"
+                  title="Remove stop"
+                  aria-label={`Remove ${stop.name}`}
+                >
+                  <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* If place was customized, show original name */}
+            {stop.isCustomName && stop.originalName && stop.originalName.toLowerCase() !== stop.name.toLowerCase() && (
+              <p className="text-[10px] text-slate-500 truncate mt-0.5" title={`Original: ${stop.originalName}`}>
+                📍 {stop.originalName}
+              </p>
+            )}
 
             {/* Geographical State & City Tags */}
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              {stop.isCurrentLocation && (
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                  GPS
+                </span>
+              )}
               {stop.state && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                   <MapPin className="w-2.5 h-2.5 text-indigo-400" />

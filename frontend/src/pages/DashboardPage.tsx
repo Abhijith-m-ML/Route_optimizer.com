@@ -7,6 +7,7 @@ import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
 import type { Destination, SelectedStop, TravelMode, SharedTripData, TripCollection } from '../types';
 import { calculateRouteMetrics, optimizeRouteStops } from '../utils/routeOptimizer';
+import { reverseGeocodeCoords } from '../services/placesService';
 import { 
   decodeTripFromUrl,
   fetchSharedTrip,
@@ -223,7 +224,42 @@ export const DashboardPage: React.FC = () => {
       }
     }
 
-    const targetStops = targetTrip.stops || [];
+    let targetStops = [...(targetTrip.stops || [])];
+
+    // Scenario B: If the destination being added is a system-generated Current Location,
+    // automatically rename any existing system-generated Current Location entry to its actual place name + (C)
+    const isNewSystemCurrentLocation =
+      Boolean(destination.isCurrentLocation) &&
+      !destination.isCustomName &&
+      destination.name.trim().toLowerCase() === 'current location';
+
+    if (isNewSystemCurrentLocation) {
+      for (let i = 0; i < targetStops.length; i++) {
+        const existing = targetStops[i];
+        const isExistingSystemCurrentLoc =
+          existing.isCurrentLocation &&
+          !existing.isCustomName &&
+          existing.name.trim().toLowerCase() === 'current location';
+
+        if (isExistingSystemCurrentLoc) {
+          let resolvedName = existing.originalName;
+          if (!resolvedName || resolvedName.trim().toLowerCase() === 'current location') {
+            try {
+              const rev = await reverseGeocodeCoords(existing.coordinates.lat, existing.coordinates.lng);
+              resolvedName = rev.placeName || rev.city || existing.city || 'Location';
+            } catch {
+              resolvedName = existing.city || 'Location';
+            }
+          }
+          targetStops[i] = {
+            ...existing,
+            name: `${resolvedName} (C)`,
+            originalName: resolvedName,
+          };
+        }
+      }
+    }
+
     const isDuplicate = targetStops.some(
       (s) =>
         (destination.placeId && s.placeId === destination.placeId) ||
@@ -371,6 +407,38 @@ export const DashboardPage: React.FC = () => {
     if (idx > 0) {
       handleSetAsStart(idx);
     }
+  };
+
+  const handleRenameStop = (id: string, newName: string) => {
+    if (!activeTrip) return;
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+
+    const updatedStops = activeTrip.stops.map((s) => {
+      if (s.id === id) {
+        return {
+          ...s,
+          name: trimmed,
+          customName: trimmed,
+          isCustomName: true,
+          originalName: s.originalName || s.name,
+        };
+      }
+      return s;
+    });
+
+    const updated = calculateRouteMetrics(updatedStops, activeTrip.travelMode);
+    persistTripUpdates({
+      ...activeTrip,
+      stops: updated.enrichedStops,
+      updatedAt: new Date().toISOString(),
+    });
+
+    showToast({
+      type: 'success',
+      title: 'Place Renamed',
+      description: `Renamed to "${trimmed}".`,
+    });
   };
 
   const handleUpdateDuration = (id: string, minutes: number) => {
@@ -741,6 +809,7 @@ export const DashboardPage: React.FC = () => {
             onMoveUp={handleMoveUp}
             onMoveDown={handleMoveDown}
             onRemoveStop={handleRemoveStop}
+            onRenameStop={handleRenameStop}
             onSetAsStart={handleSetAsStart}
             onUpdateDuration={handleUpdateDuration}
             onClearAll={handleRequestReset}

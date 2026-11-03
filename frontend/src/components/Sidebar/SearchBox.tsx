@@ -41,20 +41,31 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [pendingPlace, setPendingPlace] = useState<Destination | null>(null);
+  const [editablePlaceName, setEditablePlaceName] = useState('');
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const editableInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Close dropdown on click outside
+  // Close dropdown or pending card on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setPendingPlace(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (pendingPlace && editableInputRef.current) {
+      editableInputRef.current.focus();
+      editableInputRef.current.select();
+    }
+  }, [pendingPlace]);
 
   // Debounced search logic with selectedState biasing
   useEffect(() => {
@@ -122,7 +133,6 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
-        let placeName = 'My Current Location';
         let formattedAddress = `Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
         let shortAddr = 'Current Location';
         let geoCity: string | undefined;
@@ -130,6 +140,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         let geoStateCode: string | undefined;
         let geoCountry: string = 'India';
 
+        let actualPlaceName = 'Current Location';
         try {
           const rev = await reverseGeocodeCoords(latitude, longitude);
           if (rev.address) {
@@ -139,12 +150,11 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           geoState = rev.state;
           geoStateCode = rev.stateCode;
           geoCountry = rev.country || 'India';
+          actualPlaceName = rev.placeName || geoCity || (geoState ? `${geoCity || 'Location'}, ${geoState}` : 'Current Location');
 
           if (geoCity) {
-            placeName = `Current Location (${geoCity})`;
             shortAddr = geoState ? `${geoCity}, ${geoState}` : geoCity;
           } else if (geoState) {
-            placeName = `Current Location (${geoState})`;
             shortAddr = geoState;
           }
         } catch (geoErr) {
@@ -153,7 +163,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
 
         const newStop: Destination = {
           id: `curr_loc_${Date.now()}`,
-          name: placeName,
+          name: 'Current Location',
+          originalName: actualPlaceName,
+          isCurrentLocation: true,
+          isCustomName: false,
           address: formattedAddress,
           shortAddress: shortAddr,
           city: geoCity,
@@ -170,7 +183,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           tags: ['Current Location', 'GPS', 'Start'],
         };
 
-        onAddStop(newStop);
+        setPendingPlace(newStop);
+        setEditablePlaceName('Current Location');
         setIsLocating(false);
         setIsOpen(false);
         setQuery('');
@@ -208,7 +222,13 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     setLoadingPlaceId(suggestion.placeId);
     try {
       const destination = await fetchPlaceDetails(suggestion.placeId, suggestion.primaryText);
-      onAddStop(destination);
+      const destWithMeta: Destination = {
+        ...destination,
+        originalName: destination.name,
+        isCustomName: false,
+      };
+      setPendingPlace(destWithMeta);
+      setEditablePlaceName(destWithMeta.name);
       setQuery('');
       setSuggestions([]);
       setIsOpen(false);
@@ -219,6 +239,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         id: `place_${suggestion.placeId}`,
         placeId: suggestion.placeId,
         name: suggestion.primaryText,
+        originalName: suggestion.primaryText,
+        isCustomName: false,
         address: suggestion.fullText,
         shortAddress: suggestion.secondaryText || suggestion.fullText,
         city: suggestion.city,
@@ -234,13 +256,37 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         photoUrl: 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80',
         tags: ['place', 'landmark'],
       };
-      onAddStop(fallbackDestination);
+      setPendingPlace(fallbackDestination);
+      setEditablePlaceName(fallbackDestination.name);
       setQuery('');
       setSuggestions([]);
       setIsOpen(false);
     } finally {
       setLoadingPlaceId(null);
     }
+  };
+
+  const handleConfirmAddPending = () => {
+    if (!pendingPlace) return;
+    const trimmed = editablePlaceName.trim() || pendingPlace.name;
+    const isCustom = trimmed.toLowerCase() !== pendingPlace.name.toLowerCase();
+
+    const finalDestination: Destination = {
+      ...pendingPlace,
+      name: trimmed,
+      customName: isCustom ? trimmed : undefined,
+      isCustomName: isCustom,
+      originalName: pendingPlace.originalName || pendingPlace.name,
+    };
+
+    onAddStop(finalDestination);
+    setPendingPlace(null);
+    setEditablePlaceName('');
+  };
+
+  const handleCancelPending = () => {
+    setPendingPlace(null);
+    setEditablePlaceName('');
   };
 
   const handleClear = () => {
@@ -294,7 +340,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       </div>
 
       {/* Autocomplete Suggestions Dropdown with Add Current Location */}
-      {isOpen && (
+      {isOpen && !pendingPlace && (
         <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
           {/* Add Current Location Suggestion Item */}
           <div
@@ -519,6 +565,112 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Customize & Confirm Destination Name Card */}
+      {pendingPlace && (
+        <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900/98 backdrop-blur-2xl border border-indigo-500/50 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <h5 className="text-xs font-bold text-white uppercase tracking-wider truncate">
+                Add Destination
+              </h5>
+            </div>
+            <button
+              type="button"
+              onClick={handleCancelPending}
+              className="text-slate-400 hover:text-white p-1 rounded-lg transition"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Place Summary */}
+          <div className="flex items-start gap-2.5 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800 mb-3">
+            <img
+              src={pendingPlace.photoUrl}
+              alt={pendingPlace.name}
+              className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-slate-700/80 shadow"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src =
+                  'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80';
+              }}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-bold text-slate-200 truncate">{pendingPlace.name}</span>
+                {pendingPlace.isCurrentLocation && (
+                  <span className="bg-cyan-500/20 text-cyan-300 text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase">
+                    GPS Location
+                  </span>
+                )}
+                {pendingPlace.state && (
+                  <span className="text-[10px] text-indigo-300 bg-indigo-500/15 px-1.5 py-0.2 rounded border border-indigo-500/30">
+                    {pendingPlace.state}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 truncate mt-0.5" title={pendingPlace.address}>
+                {pendingPlace.shortAddress || pendingPlace.address}
+              </p>
+            </div>
+          </div>
+
+          {/* Editable Place Name Input Field */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider">
+                Place Name / Custom Label
+              </label>
+              <span className="text-[10px] text-indigo-400 font-medium">Editable</span>
+            </div>
+            <div className="relative">
+              <input
+                ref={editableInputRef}
+                type="text"
+                value={editablePlaceName}
+                onChange={(e) => setEditablePlaceName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmAddPending();
+                  } else if (e.key === 'Escape') {
+                    handleCancelPending();
+                  }
+                }}
+                placeholder="e.g. Home, Office, Chai Spot, My College..."
+                className="w-full bg-slate-950 text-white text-xs font-bold rounded-xl px-3 py-2 border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none transition shadow-inner"
+                autoFocus
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 leading-normal">
+              Accept this name or give it your own (e.g. <span className="text-slate-300 font-semibold">&quot;Home&quot;</span>, <span className="text-slate-300 font-semibold">&quot;Office&quot;</span>, <span className="text-slate-300 font-semibold">&quot;Chai Spot&quot;</span>).
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-3.5 flex items-center justify-end gap-2 pt-2.5 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={handleCancelPending}
+              className="px-3 py-1.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmAddPending}
+              className="px-4 py-1.5 text-xs font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add to Route</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

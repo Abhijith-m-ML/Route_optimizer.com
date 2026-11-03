@@ -28,6 +28,10 @@ export interface Destination {
   id: string;
   placeId?: string;
   name: string;
+  originalName?: string;
+  isCurrentLocation?: boolean;
+  isCustomName?: boolean;
+  customName?: string;
   hindiName?: string;
   category: PlaceCategory;
   description: string;

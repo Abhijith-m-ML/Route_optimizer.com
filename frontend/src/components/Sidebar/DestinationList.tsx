@@ -10,6 +10,7 @@ interface DestinationListProps {
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
   onRemove: (id: string) => void;
+  onRenameStop?: (id: string, newName: string) => void;
   onSetAsStart?: (index: number) => void;
   onUpdateDuration: (id: string, minutes: number) => void;
   onClearAll: () => void;
@@ -29,6 +30,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onRenameStop,
   onSetAsStart,
   onUpdateDuration,
   onClearAll,
@@ -200,6 +202,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
                         onMoveUp={() => onMoveUp(originalIndex)}
                         onMoveDown={() => onMoveDown(originalIndex)}
                         onRemove={() => onRemove(stop.id)}
+                        onRename={(newName) => onRenameStop?.(stop.id, newName)}
                         onSetAsStart={() => onSetAsStart?.(originalIndex >= 0 ? originalIndex : 0)}
                         onUpdateDuration={(duration) => onUpdateDuration(stop.id, duration)}
                         travelMode={travelMode}
@@ -255,6 +258,7 @@ export const DestinationList: React.FC<DestinationListProps> = ({
               onMoveUp={() => onMoveUp(index)}
               onMoveDown={() => onMoveDown(index)}
               onRemove={() => onRemove(stop.id)}
+              onRename={(newName) => onRenameStop?.(stop.id, newName)}
               onSetAsStart={() => onSetAsStart?.(index)}
               onUpdateDuration={(duration) => onUpdateDuration(stop.id, duration)}
               travelMode={travelMode}
