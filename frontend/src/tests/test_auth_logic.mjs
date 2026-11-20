@@ -124,7 +124,7 @@ function getBackendUrl(envBackendUrl, hostname) {
     return envUrl.replace(/\/+$/, '');
   }
 
-  return 'https://vazhikatti-gfuq.onrender.com';
+  return 'https://vazhikatti-06we.onrender.com';
 }
 
 console.log('--- Running RouteWise Frontend Auth Logic Test Suite ---');
@@ -182,8 +182,8 @@ console.log('✓ Login form validation (empty/short/valid inputs) passed');
 // Test 5: Production Backend URL resolution
 assert.strictEqual(
   getBackendUrl(undefined, 'vazhikatti-route.vercel.app'),
-  'https://vazhikatti-gfuq.onrender.com',
-  'Production Vercel deployment must point to https://vazhikatti-gfuq.onrender.com'
+  'https://vazhikatti-06we.onrender.com',
+  'Production Vercel deployment must point to https://vazhikatti-06we.onrender.com'
 );
 assert.strictEqual(
   getBackendUrl('https://custom-api.example.com/', 'vazhikatti-route.vercel.app'),
@@ -192,13 +192,13 @@ assert.strictEqual(
 );
 assert.strictEqual(
   getBackendUrl('https://vazhikatti.onrender.com', 'vazhikatti-route.vercel.app'),
-  'https://vazhikatti-gfuq.onrender.com',
-  'Obsolete vazhikatti.onrender.com must be sanitized to vazhikatti-gfuq.onrender.com'
+  'https://vazhikatti-06we.onrender.com',
+  'Obsolete vazhikatti.onrender.com must be sanitized to vazhikatti-06we.onrender.com'
 );
 assert.strictEqual(
   getBackendUrl('https://vazhikatti-api.onrender.com', 'vazhikatti-route.vercel.app'),
-  'https://vazhikatti-gfuq.onrender.com',
-  'Obsolete vazhikatti-api.onrender.com must be sanitized to vazhikatti-gfuq.onrender.com'
+  'https://vazhikatti-06we.onrender.com',
+  'Obsolete vazhikatti-api.onrender.com must be sanitized to vazhikatti-06we.onrender.com'
 );
 assert.strictEqual(
   getBackendUrl(undefined, 'localhost'),

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { saveDemoUser, verifyBackendSession, type AuthUser } from '../services/authService';
+import { saveDemoUser, verifyBackendSession, wakeUpBackend, type AuthUser } from '../services/authService';
+import { loadGoogleIdentityServices } from '../services/googleAuth';
 import { 
   Compass, 
   User, 
@@ -27,6 +28,12 @@ export const LoginPage: React.FC = () => {
   const location = useLocation();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+
+  // Pre-warm cloud backend and pre-cache Google Identity Services library on page load
+  useEffect(() => {
+    wakeUpBackend().catch(() => {});
+    loadGoogleIdentityServices().catch(() => {});
+  }, []);
 
   // Handle Google OAuth redirect callback tokens or errors
   useEffect(() => {
@@ -304,7 +311,7 @@ export const LoginPage: React.FC = () => {
             {isGoogleSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-slate-400 border-t-indigo-500 rounded-full animate-spin" />
-                <span>Connecting to Google...</span>
+                <span>Signing in with Google...</span>
               </>
             ) : (
               <>

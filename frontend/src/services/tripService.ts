@@ -125,7 +125,18 @@ export function getBackendUrl(): string {
     return envUrl.replace(/\/+$/, '');
   }
 
-  return 'https://vazhikatti-gfuq.onrender.com';
+  return 'https://vazhikatti-06we.onrender.com';
+}
+
+/**
+ * Marks a backend URL as known-active in session storage to prioritize it for subsequent calls.
+ */
+export function markWorkingBackendUrl(url: string): void {
+  try {
+    if (typeof window !== 'undefined' && url && url.startsWith('http')) {
+      sessionStorage.setItem('routewise_active_backend', url.replace(/\/+$/, ''));
+    }
+  } catch {}
 }
 
 /**
@@ -136,10 +147,19 @@ export function getBackendCandidateUrls(): string[] {
   const candidates: string[] = [];
   
   if (typeof window !== 'undefined') {
+    // 1. Explicit override in localStorage
     try {
       const custom = localStorage.getItem('routewise_backend_url')?.trim();
       if (custom && custom.startsWith('http')) {
         candidates.push(custom.replace(/\/+$/, ''));
+      }
+    } catch {}
+
+    // 2. Known active backend from current browser session
+    try {
+      const active = sessionStorage.getItem('routewise_active_backend')?.trim();
+      if (active && active.startsWith('http') && !candidates.includes(active)) {
+        candidates.push(active.replace(/\/+$/, ''));
       }
     } catch {}
   }
@@ -150,6 +170,7 @@ export function getBackendCandidateUrls(): string[] {
   }
 
   const fallbacks = [
+    'https://vazhikatti-06we.onrender.com',
     'https://vazhikatti-gfuq.onrender.com',
     'https://vazhikatti-backend.onrender.com',
     'https://routewise-backend.onrender.com',

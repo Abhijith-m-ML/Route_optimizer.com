@@ -12,8 +12,8 @@ import {
 import { auth, googleProvider, isFirebaseConfigured } from '../config/firebase';
 import { triggerGoogleSignInPopup } from './googleAuth';
 
-import { getBackendUrl, getBackendCandidateUrls } from './tripService';
-export { getBackendUrl, getBackendCandidateUrls };
+import { getBackendUrl, getBackendCandidateUrls, markWorkingBackendUrl } from './tripService';
+export { getBackendUrl, getBackendCandidateUrls, markWorkingBackendUrl };
 
 export interface AuthUser {
   uid: string;
@@ -149,31 +149,93 @@ export function getAuthErrorMessage(error: unknown): string {
  * Connects to the central backend API and returns authenticated user with token.
  * Throws an error on duplicate registrations or validation failures.
  */
+let wakeUpPromise: Promise<boolean> | null = null;
+
 /**
- * Attempt a fetch against candidate backend URLs with automatic fallback.
- * Allows seamless connection to local backend or cloud backend.
+ * Pre-warms the cloud backend in the background (e.g. on LoginPage mount or app init).
+ * This awakens free-tier cloud instances before the user even clicks login.
+ */
+export async function wakeUpBackend(): Promise<boolean> {
+  if (wakeUpPromise) return wakeUpPromise;
+
+  wakeUpPromise = (async () => {
+    try {
+      const candidateUrls = getBackendCandidateUrls();
+      const primaryUrl = candidateUrls[0] || 'https://vazhikatti-06we.onrender.com';
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(`${primaryUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+      }).catch(() => null);
+      clearTimeout(timer);
+
+      if (res && (res.ok || res.status === 200)) {
+        markWorkingBackendUrl(primaryUrl);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      setTimeout(() => {
+        wakeUpPromise = null;
+      }, 30000);
+    }
+  })();
+
+  return wakeUpPromise;
+}
+
+/**
+ * Attempt a fetch against candidate backend URLs with automatic fallback,
+ * cold-start retry support for cloud backends, and working URL caching.
  */
 async function fetchWithBackendCandidates(
   path: string,
   options: RequestInit,
-  timeoutMs: number = 10000
+  timeoutMs: number = 30000,
+  maxRetries: number = 1
 ): Promise<Response> {
   const candidateUrls = getBackendCandidateUrls();
   let lastError: any = null;
 
   for (const baseUrl of candidateUrls) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(`${baseUrl}${path}`, {
-        ...options,
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      return res;
-    } catch (err: any) {
-      console.warn(`[RouteWise Auth] Attempt to ${baseUrl}${path} failed:`, err?.message || err);
-      lastError = err;
+    let attempts = 0;
+    while (attempts <= maxRetries) {
+      attempts++;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(`${baseUrl}${path}`, {
+          ...options,
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+
+        // If the server responded with 502, 503, or 504 (transient cloud proxy warming up)
+        // and we have retries remaining, wait briefly and retry the same endpoint
+        if ((res.status === 502 || res.status === 503 || res.status === 504) && attempts <= maxRetries) {
+          console.warn(`[Vazhikatti Auth] Backend at ${baseUrl} returned HTTP ${res.status} (warming up). Retrying in 2.5s (attempt ${attempts}/${maxRetries})...`);
+          await new Promise((r) => setTimeout(r, 2500));
+          continue;
+        }
+
+        // Successfully reached backend
+        markWorkingBackendUrl(baseUrl);
+        return res;
+      } catch (err: any) {
+        const isAbort = err?.name === 'AbortError' || err?.message?.toLowerCase().includes('abort');
+        console.warn(`[Vazhikatti Auth] Attempt ${attempts} to ${baseUrl}${path} failed:`, err?.message || err);
+        lastError = err;
+
+        // If it timed out while contacting primary cloud backend, give it one more chance if retries remain
+        if (attempts <= maxRetries && isAbort && candidateUrls.indexOf(baseUrl) === 0) {
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        break; // Move to next candidate URL
+      }
     }
   }
 
@@ -408,6 +470,8 @@ export async function verifyBackendSession(token: string): Promise<boolean | nul
   }
 }
 
+let googleAuthInProgress: Promise<AuthUser> | null = null;
+
 /**
  * Sign in or register using official Google OAuth 2.0 / OpenID Connect.
  * Uses Google Identity Services to open Google's secure popup,
@@ -415,95 +479,114 @@ export async function verifyBackendSession(token: string): Promise<boolean | nul
  * and issues the application's authenticated session token.
  */
 export async function signInWithGoogle(): Promise<AuthUser> {
-  // 1. If Firebase is configured with real credentials, allow Firebase Google auth
-  if (isFirebaseConfigured && auth) {
-    try {
-      const credential = await signInWithPopup(auth, googleProvider);
-      const idToken = await credential.user.getIdToken();
+  if (googleAuthInProgress) {
+    return googleAuthInProgress;
+  }
 
-      // Forward Google ID token to central backend for verification and account registration
-      const res = await fetchWithBackendCandidates(
+  googleAuthInProgress = (async () => {
+    // 1. If Firebase is configured with real credentials, allow Firebase Google auth
+    if (isFirebaseConfigured && auth) {
+      try {
+        const credential = await signInWithPopup(auth, googleProvider);
+        const idToken = await credential.user.getIdToken();
+
+        // Forward Google ID token to central backend for verification and account registration
+        const res = await fetchWithBackendCandidates(
+          '/api/auth/google',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+          },
+          45000,
+          2
+        );
+
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data?.user && data?.token) {
+          const authUser: AuthUser = {
+            uid: data.user.uid,
+            email: data.user.email,
+            displayName: data.user.displayName || credential.user.displayName,
+            username: data.user.username,
+            token: data.token,
+            photoURL: data.user.photoURL || credential.user.photoURL,
+            isDemo: false,
+          };
+          saveDemoUser(authUser);
+          return authUser;
+        }
+      } catch (fbErr: any) {
+        if (fbErr?.code === 'auth/popup-closed-by-user') {
+          throw new Error('Google sign-in was canceled before completion.');
+        }
+        if (fbErr?.code === 'auth/popup-blocked') {
+          throw new Error('Google sign-in popup was blocked by your browser. Please allow popups and try again.');
+        }
+        console.warn('[Vazhikatti Auth] Firebase popup fallback failed, trying direct Google Identity Services:', fbErr);
+      }
+    }
+
+    // 2. Direct Official Google Identity Services OAuth 2.0 Flow
+    const googleTokens = await triggerGoogleSignInPopup();
+
+    // Send to backend for official token verification, account registration, and session token issuance
+    let res: Response;
+    try {
+      res = await fetchWithBackendCandidates(
         '/api/auth/google',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ idToken }),
+          body: JSON.stringify({
+            accessToken: googleTokens.accessToken,
+            credential: googleTokens.credential,
+            code: googleTokens.code,
+          }),
         },
-        12000
+        45000,
+        2
       );
-
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.success && data?.user && data?.token) {
-        const authUser: AuthUser = {
-          uid: data.user.uid,
-          email: data.user.email,
-          displayName: data.user.displayName || credential.user.displayName,
-          username: data.user.username,
-          token: data.token,
-          photoURL: data.user.photoURL || credential.user.photoURL,
-          isDemo: false,
-        };
-        saveDemoUser(authUser);
-        return authUser;
+    } catch (netErr: any) {
+      console.error('[Vazhikatti Auth] Backend Google auth connection failed:', netErr);
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+      if (!isOnline) {
+        throw new Error('Network connection lost. Please check your internet connection.');
       }
-    } catch (fbErr: any) {
-      if (fbErr?.code === 'auth/popup-closed-by-user') {
-        throw new Error('Google sign-in was canceled before completion.');
+      if (netErr?.name === 'AbortError' || netErr?.message?.toLowerCase().includes('abort')) {
+        throw new Error('The authentication server took longer than usual to start up. Please click Sign in with Google again to complete your login.');
       }
-      if (fbErr?.code === 'auth/popup-blocked') {
-        throw new Error('Google sign-in popup was blocked by your browser. Please allow popups and try again.');
-      }
-      console.warn('[RouteWise Auth] Firebase popup fallback failed, trying direct Google Identity Services:', fbErr);
+      throw new Error('Unable to reach the authentication server. The cloud service may be waking up, please try again in a few moments.');
     }
-  }
 
-  // 2. Direct Official Google Identity Services OAuth 2.0 Flow
-  const googleTokens = await triggerGoogleSignInPopup();
+    const data = await res.json().catch(() => null);
 
-  // Send to backend for official token verification, account registration, and session token issuance
-  let res: Response;
-  try {
-    res = await fetchWithBackendCandidates(
-      '/api/auth/google',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accessToken: googleTokens.accessToken,
-          credential: googleTokens.credential,
-          code: googleTokens.code,
-        }),
-      },
-      12000
-    );
-  } catch (netErr: any) {
-    console.error('[RouteWise Auth] Backend Google auth connection failed:', netErr);
-    throw new Error('Unable to connect to the authentication server. Please check your internet connection.');
-  }
+    if (!res.ok) {
+      const errorMsg = data?.error || `Google authentication failed (Status ${res.status}).`;
+      throw new Error(errorMsg);
+    }
 
-  const data = await res.json().catch(() => null);
+    if (!data?.success || !data?.token || !data?.user) {
+      throw new Error('Google authentication failed. Invalid response from authentication server.');
+    }
 
-  if (!res.ok) {
-    const errorMsg = data?.error || `Google authentication failed (Status ${res.status}).`;
-    throw new Error(errorMsg);
-  }
+    const authUser: AuthUser = {
+      uid: data.user.uid,
+      email: data.user.email,
+      displayName: data.user.displayName || data.user.username,
+      username: data.user.username,
+      token: data.token,
+      photoURL: data.user.photoURL || null,
+      isDemo: false,
+    };
 
-  if (!data?.success || !data?.token || !data?.user) {
-    throw new Error('Google authentication failed. Invalid response from authentication server.');
-  }
+    saveDemoUser(authUser);
+    return authUser;
+  })().finally(() => {
+    googleAuthInProgress = null;
+  });
 
-  const authUser: AuthUser = {
-    uid: data.user.uid,
-    email: data.user.email,
-    displayName: data.user.displayName || data.user.username,
-    username: data.user.username,
-    token: data.token,
-    photoURL: data.user.photoURL || null,
-    isDemo: false,
-  };
-
-  saveDemoUser(authUser);
-  return authUser;
+  return googleAuthInProgress;
 }
 
 /**

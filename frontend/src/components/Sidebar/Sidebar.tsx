@@ -6,6 +6,7 @@ import { WelcomeCard } from './WelcomeCard';
 import { TripSelector } from '../Trips/TripSelector';
 import type { Destination, RouteMetrics, SelectedStop, TravelMode, TripCollection } from '../../types';
 import { Info, Route, Map as MapIcon } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
 
 interface SidebarProps {
   tripTitle?: string;
@@ -66,10 +67,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCreateNewTrip,
   onOpenMyTrips,
 }) => {
+  const { isDark } = useTheme();
   const selectedIds = stops.map((s) => s.id);
 
   return (
-    <aside className="w-full h-full bg-slate-900/60 backdrop-blur-md flex flex-col border-r border-slate-800/80 overflow-hidden">
+    <aside className={`w-full h-full flex flex-col border-r overflow-hidden transition-colors ${
+      isDark ? 'bg-slate-900/60 backdrop-blur-md border-slate-800/80 text-slate-100' : 'bg-white/95 backdrop-blur-md border-slate-200 text-slate-900'
+    }`}>
       {/* Scrollable Container */}
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 md:p-5 space-y-4">
         {/* Main Content: Welcome Card for 0 stops or Active Route Planner for 1+ stops */}

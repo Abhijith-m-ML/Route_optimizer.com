@@ -604,9 +604,10 @@ app.use(cors({
     return callback(null, true);
   },
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
+app.options('*', cors());
 app.use(express.json());
 
 // Authentication Middleware to protect private API routes
@@ -664,7 +665,8 @@ app.get('/', (_req: Request, res: Response) => {
     project: 'Smart Travel Planner (RouteWise)',
     version: '1.3.0',
     endpoints: {
-      health: '/api/health',
+      health: '/health',
+      apiHealth: '/api/health',
       backup: 'GET /api/admin/backup',
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
@@ -684,12 +686,14 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-// Comprehensive Health check endpoint with storage persistence status
-app.get('/api/health', async (_req: Request, res: Response) => {
+// Comprehensive Health check endpoints (GET /health and GET /api/health)
+const healthCheckHandler = async (_req: Request, res: Response) => {
   const dbConnected = await isDatabaseConnected();
   res.json({
     status: 'ok',
-    project: 'Smart Travel Planner (RouteWise)',
+    ready: true,
+    service: 'Route Optimizer API',
+    project: 'Vazhikatti - Smart Travel Planner',
     usersCount: usersMap.size,
     tripCollectionsCount: tripCollectionsMap.size,
     sharedTripsCount: sharedTripsMap.size,
@@ -700,21 +704,14 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     },
     googleOAuth: {
       enabled: Boolean(GOOGLE_CLIENT_ID),
-      clientIdConfigured: Boolean(GOOGLE_CLIENT_ID),
-      clientSecretConfigured: Boolean(GOOGLE_CLIENT_SECRET),
-    },
-    persistence: {
-      storageEngine: process.env.DATABASE_URL
-        ? 'Persistent PostgreSQL Database (Supabase) + Local Rolling Snapshots'
-        : 'Multi-Tier JSON Document Store with Seed Baseline & Rolling Snapshots',
-      dataDirectory: DATA_DIR,
-      persistentDiskConfigured: Boolean(process.env.DATA_DIR),
-      backupDirectory: BACKUP_DIR,
-      status: 'protected',
+      configured: Boolean(GOOGLE_CLIENT_ID),
     },
     timestamp: new Date().toISOString(),
   });
-});
+};
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 // Admin Database Backup & Export Endpoint (Protected)
 app.get('/api/admin/backup', (req: Request, res: Response) => {

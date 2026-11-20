@@ -26,10 +26,15 @@ import { OnboardingModal } from '../components/OnboardingModal';
 import { CreateEditTripModal } from '../components/Trips/CreateEditTripModal';
 import { DeleteTripModal } from '../components/Trips/DeleteTripModal';
 import { MyTripsModal } from '../components/Trips/MyTripsModal';
+import { EditProfileModal } from '../components/EditProfileModal';
+import { PolarstepsBottomSheet } from '../components/Sidebar/PolarstepsBottomSheet';
+import { MobileBottomNav } from '../components/Navigation/MobileBottomNav';
+import { useTheme } from '../context/ThemeContext';
 import { Map as MapIcon, ListFilter } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const userId = user?.uid || user?.email || user?.displayName || 'guest';
 
   // -------------------------------------------------------------
@@ -63,6 +68,7 @@ export const DashboardPage: React.FC = () => {
   const [isDeleteTripModalOpen, setIsDeleteTripModalOpen] = useState(false);
   const [deletingTrip, setDeletingTrip] = useState<TripCollection | null>(null);
   const [isDeletingTrip, setIsDeletingTrip] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
 
   // Mobile active tab toggle ('sidebar' | 'map')
   const [mobileView, setMobileView] = useState<'sidebar' | 'map'>('map');
@@ -937,7 +943,9 @@ export const DashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="h-screen h-[100dvh] bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-600 selection:text-white overflow-hidden">
+    <div className={`h-screen h-[100dvh] flex flex-col font-sans selection:bg-indigo-600 selection:text-white overflow-hidden transition-colors duration-200 ${
+      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
+    }`}>
       {/* Top Navigation Bar */}
       <Navbar
         tripTitle={tripTitle}
@@ -964,8 +972,12 @@ export const DashboardPage: React.FC = () => {
       />
 
       {/* Mobile / Tablet Tab Toggle Bar */}
-      <div className="lg:hidden bg-slate-950/95 border-b border-slate-800/90 px-3 py-2 flex-shrink-0 z-40 backdrop-blur-md">
-        <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-900/90 rounded-2xl border border-slate-800/80 shadow-inner">
+      <div className={`lg:hidden px-3 py-2 flex-shrink-0 z-30 backdrop-blur-md border-b transition-colors duration-200 ${
+        isDark ? 'bg-slate-950/95 border-slate-800/90' : 'bg-white/95 border-slate-200/90'
+      }`}>
+        <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-2xl border shadow-inner ${
+          isDark ? 'bg-slate-900/90 border-slate-800/80' : 'bg-slate-100/90 border-slate-200/80'
+        }`}>
           <button
             type="button"
             onClick={() => {
@@ -976,7 +988,7 @@ export const DashboardPage: React.FC = () => {
             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-200 min-h-[40px] select-none ${
               mobileView === 'map'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-extrabold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                : isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
             aria-selected={mobileView === 'map'}
             role="tab"
@@ -991,13 +1003,13 @@ export const DashboardPage: React.FC = () => {
             className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-200 min-h-[40px] select-none ${
               mobileView === 'sidebar'
                 ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-extrabold'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                : isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
             aria-selected={mobileView === 'sidebar'}
             role="tab"
           >
             <ListFilter className="w-4 h-4" />
-            <span>Trip Plan ({stops.length})</span>
+            <span>Trip Plan ({currentStops.length})</span>
           </button>
         </div>
       </div>
@@ -1006,7 +1018,7 @@ export const DashboardPage: React.FC = () => {
       <main className="flex-1 w-full min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Sidebar Panel (Trip Plan Dedicated View) */}
         <div
-          className={`w-full lg:w-[35%] xl:w-[34%] h-full flex-shrink-0 min-h-0 ${
+          className={`w-full lg:w-[35%] xl:w-[34%] h-full flex-shrink-0 min-h-0 pb-14 lg:pb-0 ${
             mobileView === 'sidebar' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
           }`}
         >
@@ -1043,7 +1055,7 @@ export const DashboardPage: React.FC = () => {
           />
         </div>
 
-        {/* Real Google Map Panel (Interactive Map Clean View) */}
+        {/* Real Google Map Panel (Interactive Map Clean View with Polarsteps Draggable Bottom Sheet) */}
         <div
           className={`w-full lg:w-[65%] xl:w-[66%] h-full flex-1 relative min-h-0 ${
             mobileView === 'map' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
@@ -1056,8 +1068,50 @@ export const DashboardPage: React.FC = () => {
             onRemoveStop={handleRemoveStop}
             onSetAsStart={handleSetAsStartById}
           />
+
+          {/* Polarsteps-Style Draggable Bottom Sheet (Mobile & Tablet) */}
+          <PolarstepsBottomSheet
+            stops={currentStops}
+            metrics={metrics}
+            isOptimized={isOptimized}
+            onOptimizeRoute={handleOptimizeRoute}
+            trips={trips}
+            activeTripId={activeTripId}
+            onSelectTrip={(id) => setActiveTripId(id)}
+            onCreateNewTrip={() => setIsCreateTripModalOpen(true)}
+            onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
+            onOpenShare={() => setIsShareModalOpen(true)}
+            onOpenEditProfile={() => setIsEditProfileOpen(true)}
+            onOpenTripPlan={() => {
+              setMobileView('sidebar');
+              setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+            }}
+            travelMode={travelMode}
+          />
         </div>
       </main>
+
+      {/* Mobile Fixed Bottom Navigation */}
+      <MobileBottomNav
+        activeTab={mobileView === 'map' ? 'map' : 'plan'}
+        onSelectTab={(tab) => {
+          if (tab === 'map') {
+            setMobileView('map');
+          } else if (tab === 'plan') {
+            setMobileView('sidebar');
+          } else if (tab === 'trips') {
+            setIsMyTripsModalOpen(true);
+          }
+          setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+        }}
+        onOptimizeRoute={handleOptimizeRoute}
+        onOpenShare={() => setIsShareModalOpen(true)}
+        onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
+        onOpenProfile={() => setIsEditProfileOpen(true)}
+        stopsCount={currentStops.length}
+        tripsCount={trips.length}
+        isOptimized={isOptimized}
+      />
 
       {/* First-Time Intelligent Onboarding Modal */}
       <OnboardingModal
@@ -1154,6 +1208,13 @@ export const DashboardPage: React.FC = () => {
         travelMode={travelMode}
         trips={trips}
         activeTripId={activeTripId}
+      />
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={isEditProfileOpen}
+        onClose={() => setIsEditProfileOpen(false)}
+        onSuccess={(msg) => setToast({ id: Date.now().toString(), type: 'success', title: msg })}
       />
 
       {/* Notification Toast */}

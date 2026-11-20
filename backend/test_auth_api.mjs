@@ -54,6 +54,13 @@ async function runTests() {
     assert.strictEqual(rootRes.data.service, 'Route Optimizer API', 'Service name must be Route Optimizer API');
     console.log('✓ Root GET / health-check endpoint verified (status: ok, service: Route Optimizer API)');
 
+    // Verify GET /health endpoint
+    const getHealthRes = await getJson('/health');
+    assert.strictEqual(getHealthRes.status, 200, 'GET /health must return HTTP 200');
+    assert.strictEqual(getHealthRes.data.status, 'ok');
+    assert.strictEqual(getHealthRes.data.ready, true, 'GET /health ready must be true');
+    console.log('✓ GET /health endpoint verified (status: ok, ready: true)');
+
     // Verify GET /api/health endpoint
     const healthRes = await getJson('/api/health');
     assert.strictEqual(healthRes.status, 200, 'GET /api/health must return HTTP 200');
