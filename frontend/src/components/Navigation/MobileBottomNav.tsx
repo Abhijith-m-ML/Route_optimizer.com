@@ -1,10 +1,10 @@
 import React from 'react';
-import { Map, Compass, Sparkles, Share2, User } from 'lucide-react';
+import { Map, Compass, Sparkles, Share2, User, Search } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
 export interface MobileBottomNavProps {
-  activeTab: 'map' | 'trips' | 'plan';
-  onSelectTab: (tab: 'map' | 'trips' | 'plan') => void;
+  activeTab: 'map' | 'search' | 'trips' | 'plan';
+  onSelectTab: (tab: 'map' | 'search' | 'trips' | 'plan') => void;
   onOptimizeRoute?: () => void;
   onOpenShare?: () => void;
   onOpenMyTrips?: () => void;
@@ -60,7 +60,30 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <span className="text-[10px] mt-1 tracking-tight">Map</span>
         </button>
 
-        {/* 2. My Trips */}
+        {/* 2. Search / Explore Destinations */}
+        <button
+          type="button"
+          onClick={() => onSelectTab('search')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-all duration-150 active:scale-95 ${
+            activeTab === 'search'
+              ? isDark 
+                ? 'text-cyan-400 font-bold' 
+                : 'text-indigo-600 font-bold'
+              : 'hover:text-slate-200 dark:hover:text-slate-100'
+          }`}
+          aria-label="Search"
+          data-testid="bottom-nav-search"
+        >
+          <div className="relative">
+            <Search className="w-5 h-5" />
+            {activeTab === 'search' && (
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-current" />
+            )}
+          </div>
+          <span className="text-[10px] mt-1 tracking-tight">Search</span>
+        </button>
+
+        {/* 3. My Trips */}
         <button
           type="button"
           onClick={() => {

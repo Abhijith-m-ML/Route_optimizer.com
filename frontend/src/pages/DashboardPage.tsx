@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar/Sidebar';
@@ -61,6 +62,7 @@ function clearPendingSyncTrip(tripId: string, userId: string) {
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { isDark } = useTheme();
+  const navigate = useNavigate();
   const userId = user?.uid || user?.email || user?.displayName || 'guest';
 
   // -------------------------------------------------------------
@@ -1234,6 +1236,8 @@ export const DashboardPage: React.FC = () => {
         onSelectTab={(tab) => {
           if (tab === 'map') {
             setMobileView('map');
+          } else if (tab === 'search') {
+            navigate('/search');
           } else if (tab === 'plan') {
             setMobileView('sidebar');
           } else if (tab === 'trips') {

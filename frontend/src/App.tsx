@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { SearchPage } from './pages/SearchPage';
 import { SharedTripPage } from './pages/SharedTripPage';
 
 export const App: React.FC = () => {
@@ -61,6 +62,16 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Dedicated Search Page Route */}
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <SearchPage />
               </ProtectedRoute>
             }
           />

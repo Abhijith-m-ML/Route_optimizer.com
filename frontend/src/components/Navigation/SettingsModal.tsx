@@ -16,7 +16,8 @@ import {
   Edit2,
   CheckCircle2,
   Loader2,
-  CloudOff
+  CloudOff,
+  Search
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -235,6 +236,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               Trip Actions
             </span>
             <div className="space-y-1.5">
+              {/* Search & Discover Destinations */}
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate('/search');
+                }}
+                className={`w-full flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                  isDark
+                    ? 'bg-slate-800/50 border-slate-800 hover:bg-slate-800 text-slate-200'
+                    : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-bold">Search & Discover</p>
+                    <p className="text-[11px] text-slate-400">Explore continents, cities & landmarks</p>
+                  </div>
+                </div>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isDark ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  Explore
+                </span>
+              </button>
+
               {/* My Trips Collections (Compass) */}
               <button
                 type="button"

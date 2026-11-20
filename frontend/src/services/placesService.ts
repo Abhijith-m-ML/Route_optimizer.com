@@ -1,6 +1,7 @@
 import { getGoogleMapsApiKey, loadPlacesLibrary } from './googleMapsLoader';
 import type { Destination, PlaceCategory, PlaceSuggestion } from '../types';
 import { getStateByName, normalizeStateName } from '../data/indianStates';
+import { CONTINENTS_DATA } from '../data/continentDestinations';
 
 // Fallback high-resolution photos for various categories
 const CATEGORY_DEFAULT_PHOTOS: Record<PlaceCategory, string> = {
@@ -647,4 +648,99 @@ export async function fetchPlaceDetails(
     photoUrl: CATEGORY_DEFAULT_PHOTOS[defaultCategory],
     tags: ['india'],
   };
+}
+
+/**
+ * Searches worldwide places, cities, countries, and landmarks across all continents.
+ * Leverages curated continent databases and Nominatim worldwide geocoding with photo resolution.
+ */
+export async function searchWorldwidePlaces(query: string): Promise<Destination[]> {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return [];
+
+  const results: Destination[] = [];
+  const seenPlaceIds = new Set<string>();
+
+  // 1. Instant check across curated continent destinations
+  const allContinentDestinations = CONTINENTS_DATA.flatMap((c) => c.destinations);
+  for (const dest of allContinentDestinations) {
+    const matchName = dest.name.toLowerCase().includes(trimmed);
+    const matchCity = dest.city?.toLowerCase().includes(trimmed);
+    const matchCountry = dest.country?.toLowerCase().includes(trimmed);
+    const matchTags = dest.tags?.some((t) => t.toLowerCase().includes(trimmed));
+
+    if (matchName || matchCity || matchCountry || matchTags) {
+      if (!seenPlaceIds.has(dest.id)) {
+        seenPlaceIds.add(dest.id);
+        results.push(dest);
+      }
+    }
+  }
+
+  // 2. Query Nominatim worldwide open geocoding API for global cities, countries, and landmarks
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmed)}&addressdetails=1&limit=10`,
+      {
+        headers: {
+          'Accept-Language': 'en',
+        },
+      }
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const lat = parseFloat(item.lat);
+          const lng = parseFloat(item.lon);
+          if (isNaN(lat) || isNaN(lng)) continue;
+
+          const address = item.address || {};
+          const city =
+            address.city ||
+            address.town ||
+            address.village ||
+            address.municipality ||
+            address.county ||
+            '';
+          const state = address.state || address.region || '';
+          const country = address.country || '';
+          const name = item.name || item.display_name.split(',')[0].trim();
+          const placeId = `osm_${item.place_id || item.osm_id}`;
+
+          if (!seenPlaceIds.has(placeId)) {
+            seenPlaceIds.add(placeId);
+            const category = inferPlaceCategory([item.type, item.class], name);
+            const shortAddr =
+              [city, country].filter(Boolean).join(', ') ||
+              item.display_name.split(',').slice(0, 2).join(', ');
+
+            results.push({
+              id: placeId,
+              placeId,
+              name,
+              category,
+              description: item.display_name,
+              address: item.display_name,
+              shortAddress: shortAddr,
+              city: city || undefined,
+              state: state || undefined,
+              country: country || undefined,
+              coordinates: { lat, lng },
+              rating: 4.7,
+              reviewsCount: 1200,
+              typicalVisitDurationMinutes: 120,
+              photoUrl: CATEGORY_DEFAULT_PHOTOS[category] || CATEGORY_DEFAULT_PHOTOS.modern,
+              tags: [category, country].filter(Boolean),
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[searchWorldwidePlaces] Nominatim lookup non-fatal fallback:', err);
+  }
+
+  return results;
 }
