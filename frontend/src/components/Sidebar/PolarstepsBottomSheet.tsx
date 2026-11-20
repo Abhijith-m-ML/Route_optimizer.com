@@ -4,7 +4,6 @@ import {
   BarChart3, 
   Share2, 
   ChevronUp, 
-  ChevronDown, 
   Sparkles, 
   Route, 
   Folder, 
@@ -115,7 +114,7 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
   const toggleExpand = () => {
     if (snapPosition === 'collapsed') {
       snapTo('half');
-    } else if (snapPosition === 'half') {
+    } else if (isHalf) {
       snapTo('expanded');
     } else {
       snapTo('half');
@@ -366,6 +365,7 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
         onMouseDown={handleMouseDown}
         className="w-full pt-2 pb-1.5 px-4 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none flex-shrink-0 touch-none"
         aria-label="Drag or tap to resize bottom sheet"
+        aria-expanded={isExpanded}
       >
         {/* Pill handle bar */}
         <div
@@ -376,7 +376,7 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
         />
 
         {/* State-specific header navigation & label */}
-        {isCollapsed ? (
+        {isCollapsed && (
           /* FULLY COLLAPSED VIEW: Minimal indicator bar, reveals almost entire map */
           <div
             onClick={() => snapTo('half')}
@@ -385,52 +385,10 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm select-none" title="India">🇮🇳</span>
               <span className="truncate font-extrabold text-[12px]">{userDisplayName}</span>
-              <span className={`text-[10px] font-medium hidden xs:inline ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                • {trips.length} {trips.length === 1 ? 'trip' : 'trips'}
-              </span>
             </div>
             <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-500 hover:text-indigo-400">
-              <span>Explore Trips</span>
               <ChevronUp className="w-3.5 h-3.5" />
             </div>
-          </div>
-        ) : (
-          /* HALF & EXPANDED VIEWS: Status bar with quick 1-tap snap controls */
-          <div className="w-full flex items-center justify-between text-[10px] font-bold tracking-wider uppercase mt-1 px-1 opacity-70">
-            {/* Quick 1-tap Collapse to Map */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                snapTo('collapsed');
-              }}
-              className="flex items-center gap-0.5 hover:opacity-100 text-slate-400 hover:text-slate-200 transition"
-              title="Collapse sheet to reveal full map"
-              aria-label="Collapse to map"
-            >
-              <ChevronDown className="w-3 h-3" />
-              <span>Map View</span>
-            </button>
-
-            <span className="text-[9px] tracking-widest font-extrabold uppercase">
-              {isExpanded ? 'Full Details' : 'Swipe Up for Details'}
-            </span>
-
-            {/* Quick 1-tap Toggle Expand / Half */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isHalf) snapTo('expanded');
-                else snapTo('half');
-              }}
-              className="flex items-center gap-0.5 hover:opacity-100 text-indigo-400 hover:text-indigo-300 transition"
-              title={isExpanded ? 'Return to half view' : 'Expand fully'}
-              aria-label={isExpanded ? 'Half view' : 'Expand full'}
-            >
-              <span>{isExpanded ? 'Half' : 'Expand'}</span>
-              {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-            </button>
           </div>
         )}
       </div>
@@ -445,87 +403,43 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
         }`}
       >
         
-        {/* 1. Polarsteps-Inspired User Profile Row */}
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* User Avatar */}
-            <div className="relative flex-shrink-0">
-              {user?.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt={userDisplayName}
-                  className="w-13 h-13 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-indigo-500/60 shadow-md"
-                />
-              ) : (
-                <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 flex items-center justify-center text-white font-extrabold text-base shadow-md shadow-indigo-500/20">
-                  {userInitials}
-                </div>
-              )}
-              {onOpenEditProfile && (
-                <button
-                  type="button"
-                  onClick={onOpenEditProfile}
-                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow hover:bg-indigo-500 transition"
-                  title="Edit profile photo"
-                  aria-label="Edit photo"
-                >
-                  <Edit2 className="w-2.5 h-2.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Name, Origin Flag & Handle */}
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-extrabold text-sm sm:text-base tracking-tight truncate">
-                  {userDisplayName}
-                </h3>
-                {/* Country Flag Badge (India default for Vazhikatti) */}
-                <span className="text-base select-none" title="India">
-                  🇮🇳
-                </span>
+        {/* 1. User Profile Row (Avatar + Name) */}
+        <div className="flex items-center gap-3.5 pt-1">
+          {/* User Avatar */}
+          <div className="relative flex-shrink-0">
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt={userDisplayName}
+                className="w-13 h-13 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-indigo-500/60 shadow-md"
+              />
+            ) : (
+              <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 flex items-center justify-center text-white font-extrabold text-base shadow-md shadow-indigo-500/20">
+                {userInitials}
               </div>
-              <p className={`text-xs truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                {user?.email || '@traveler'}
-              </p>
-            </div>
+            )}
+            {onOpenEditProfile && (
+              <button
+                type="button"
+                onClick={onOpenEditProfile}
+                className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow hover:bg-indigo-500 transition"
+                title="Edit profile photo"
+                aria-label="Edit photo"
+              >
+                <Edit2 className="w-2.5 h-2.5" />
+              </button>
+            )}
           </div>
 
-          {/* User Stats Counters (Places, Trips, Followers, Following) */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 text-center">
-            <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-black tracking-tight">
-                {travelStats.visitedCount}
-              </span>
-              <span className={`text-[9px] sm:text-[10px] font-medium uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Places
-              </span>
-            </div>
-            <div className={`w-px h-5 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
-            <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-black tracking-tight">
-                {travelStats.tripsCount}
-              </span>
-              <span className={`text-[9px] sm:text-[10px] font-medium uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Trips
-              </span>
-            </div>
-            <div className={`w-px h-5 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
-            <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-black tracking-tight">
-                {travelStats.followersCount}
-              </span>
-              <span className={`text-[9px] sm:text-[10px] font-medium uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Followers
-              </span>
-            </div>
-            <div className={`w-px h-5 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`} />
-            <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-black tracking-tight">
-                {travelStats.followingCount}
-              </span>
-              <span className={`text-[9px] sm:text-[10px] font-medium uppercase ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                Following
+          {/* Name & Origin Flag */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base sm:text-lg tracking-tight truncate">
+                {userDisplayName}
+              </h3>
+              {/* Country Flag Badge (India default for Vazhikatti) */}
+              <span className="text-base select-none" title="India">
+                🇮🇳
               </span>
             </div>
           </div>

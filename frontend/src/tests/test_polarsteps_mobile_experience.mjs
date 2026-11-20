@@ -97,17 +97,20 @@ test('Content scrolling is decoupled from drag gestures to prevent accidental dr
 test('Draggable pill handle at the top', () => {
   assert(sheetCode.includes('cursor-grab'), 'Has grab cursor for handle');
   assert(sheetCode.includes('rounded-full') && sheetCode.includes('h-1.5'), 'Has pill handle element');
-  assert(sheetCode.includes('ChevronUp') && sheetCode.includes('ChevronDown'), 'Has expand/collapse chevron indicators');
+  assert(sheetCode.includes('ChevronUp'), 'Has chevron indicator in collapsed view');
+  assert(!sheetCode.includes('Map View</span>'), 'Clean handle bar without Map View text');
+  assert(!sheetCode.includes('Swipe Up for Details'), 'Clean handle bar without Expand / Details text');
 });
 
-test('Real User Profile section with authentic user information', () => {
+test('Real User Profile section displays clean profile picture and user name', () => {
   assert(sheetCode.includes('user?.displayName'), 'Uses real user display name');
   assert(sheetCode.includes('userInitials'), 'Generates initials from real user display name');
   assert(sheetCode.includes('user.photoURL'), 'Renders real user avatar when available');
   assert(sheetCode.includes('🇮🇳'), 'Displays India flag');
-  assert(sheetCode.includes('visitedLocations.size') || sheetCode.includes('Places Visited'), 'Computes visited places count');
-  assert(sheetCode.includes('trips.length') || sheetCode.includes('Trips'), 'Displays real trips count');
-  assert(sheetCode.includes('Followers') && sheetCode.includes('Following'), 'Displays followers and following counts');
+  assert(!sheetCode.includes('user?.email'), 'Clean profile without mentioning email address');
+  assert(!sheetCode.includes('Places</span>'), 'Places counter removed for clean profile');
+  assert(!sheetCode.includes('Followers</span>'), 'Followers counter removed for clean profile');
+  assert(!sheetCode.includes('Following</span>'), 'Following counter removed for clean profile');
 });
 
 test('Main Action Buttons: Add Trip (primary), Travel Stats (secondary), Share/Friends (icon)', () => {
