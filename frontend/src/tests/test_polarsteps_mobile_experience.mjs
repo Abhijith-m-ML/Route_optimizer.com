@@ -60,6 +60,40 @@ test('Touch gestures for swipe up (expand) and swipe down (collapse)', () => {
   assert(sheetCode.includes('toggleExpand'), 'Has toggleExpand helper');
 });
 
+test('Three draggable snap positions: FULLY EXPANDED, HALF EXPANDED, and FULLY COLLAPSED', () => {
+  assert(sheetCode.includes("'collapsed' | 'half' | 'expanded'"), 'Defines 3 snap positions');
+  assert(sheetCode.includes("initialPosition = 'half'"), 'Half expanded is default initial position');
+  assert(sheetCode.includes('h-[85vh]'), 'Fully expanded position reaches ~85-88vh');
+  assert(sheetCode.includes('h-[38vh]') || sheetCode.includes('min-h-[290px]'), 'Half expanded position occupies ~38-40vh');
+  assert(sheetCode.includes('h-[46px]') || sheetCode.includes('h-[48px]') || sheetCode.includes('h-[50px]'), 'Fully collapsed position moves down to minimal handle bar');
+  assert(sheetCode.includes('isCollapsed'), 'Supports isCollapsed state');
+});
+
+test('Velocity-sensitive drag detection & mouse support for smooth transitions', () => {
+  assert(sheetCode.includes('finalizeDrag'), 'Has velocity and delta drag calculation');
+  assert(sheetCode.includes('onMouseDown={handleMouseDown}'), 'Supports mouse drag for desktop & tablets');
+  assert(sheetCode.includes('velocity'), 'Computes swipe flick velocity');
+  assert(sheetCode.includes('snapTo'), 'Supports programmatic and gesture snapping between all 3 positions');
+});
+
+test('High-performance GPU acceleration via translate3d & requestAnimationFrame', () => {
+  assert(sheetCode.includes('translate3d'), 'Uses translate3d GPU-composited transform');
+  assert(sheetCode.includes('requestAnimationFrame'), 'Uses requestAnimationFrame loop during dragging');
+  assert(sheetCode.includes('will-change-transform'), 'Declares will-change-transform for compositor thread');
+  assert(sheetCode.includes('touch-none'), 'Header handle has touch-none to prevent browser scroll/gesture conflicts');
+  assert(sheetCode.includes('cubic-bezier(0.16, 1, 0.3, 1)'), 'Uses spring-like cubic-bezier deceleration curve');
+});
+
+test('Bottom sheet clearance: never overlaps bottom navigation bar', () => {
+  assert(sheetCode.includes('bottom-14'), 'Sheet is anchored at bottom-14 (above 56px bottom navigation)');
+  assert(sheetCode.includes('fixed inset-x-0'), 'Fixed at horizontal edges');
+});
+
+test('Content scrolling is decoupled from drag gestures to prevent accidental drags', () => {
+  assert(sheetCode.includes('overflow-y-auto') && sheetCode.includes('overscroll-contain'), 'Content has native scroll container');
+  assert(sheetCode.includes("isCollapsed ? 'hidden' : 'block'"), 'Content body hidden when fully collapsed to reveal map');
+});
+
 test('Draggable pill handle at the top', () => {
   assert(sheetCode.includes('cursor-grab'), 'Has grab cursor for handle');
   assert(sheetCode.includes('rounded-full') && sheetCode.includes('h-1.5'), 'Has pill handle element');

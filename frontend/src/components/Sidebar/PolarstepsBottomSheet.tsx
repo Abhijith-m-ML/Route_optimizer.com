@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Plus, 
   BarChart3, 
@@ -18,6 +18,8 @@ import type { RouteMetrics, SelectedStop, TravelMode, TripCollection } from '../
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
+export type SheetSnapPosition = 'collapsed' | 'half' | 'expanded';
+
 export interface PolarstepsBottomSheetProps {
   stops: SelectedStop[];
   metrics?: RouteMetrics;
@@ -33,6 +35,8 @@ export interface PolarstepsBottomSheetProps {
   onOpenTripPlan?: () => void;
   onOpenStats?: () => void;
   travelMode?: TravelMode;
+  initialPosition?: SheetSnapPosition;
+  onPositionChange?: (position: SheetSnapPosition) => void;
 }
 
 export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
@@ -50,18 +54,73 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
   onOpenTripPlan,
   onOpenStats,
   travelMode: _travelMode = 'DRIVING',
+  initialPosition = 'half',
+  onPositionChange,
 }) => {
   const { user } = useAuth();
   const { isDark } = useTheme();
 
-  // Bottom sheet state: 'collapsed' (default ~38-42% screen) vs 'expanded' (~86-90% screen)
-  const [isExpanded, setIsExpanded] = useState(false);
+  // 3-position draggable snap state: 'collapsed' (~48px) | 'half' (~38vh default) | 'expanded' (~85vh)
+  const [snapPosition, setSnapPosition] = useState<SheetSnapPosition>(initialPosition);
   const [showStatsModal, setShowStatsModal] = useState(false);
 
-  // Drag handling refs
+  // Backward compatibility aliases for tests and external listeners
+  const isExpanded = snapPosition === 'expanded';
+  const isCollapsed = snapPosition === 'collapsed';
+  const isHalf = snapPosition === 'half';
+
+  // High-performance drag refs (zero React re-renders during dragging)
   const dragStartYRef = useRef<number | null>(null);
+  const dragStartTimeRef = useRef<number>(0);
   const currentDragYRef = useRef<number>(0);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef<boolean>(false);
+  const rafIdRef = useRef<number | null>(null);
+  const rafPendingRef = useRef<boolean>(false);
+  const baseTranslateYRef = useRef<number>(0);
+  const targetYRef = useRef<number>(0);
+  const sheetHeightRef = useRef<number>(0);
+
+  // GPU translate3d values for the 3 snap positions
+  const getTransformForPosition = (pos: SheetSnapPosition) => {
+    switch (pos) {
+      case 'expanded':
+        return 'translate3d(0, 0px, 0)';
+      case 'half':
+        // Leaves ~38vh / ~320px visible above navigation
+        return 'translate3d(0, calc(100% - 320px), 0)';
+      case 'collapsed':
+        // Leaves ~48px visible (minimal handle bar)
+        return 'translate3d(0, calc(100% - 48px), 0)';
+    }
+  };
+
+  // Clean up any pending animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
+  const snapTo = (newPos: SheetSnapPosition) => {
+    if (sheetRef.current) {
+      // Hardware-accelerated spring-like cubic bezier transition
+      sheetRef.current.style.transition = 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)';
+      sheetRef.current.style.transform = getTransformForPosition(newPos);
+    }
+    setSnapPosition(newPos);
+    onPositionChange?.(newPos);
+  };
+
+  const toggleExpand = () => {
+    if (snapPosition === 'collapsed') {
+      snapTo('half');
+    } else if (snapPosition === 'half') {
+      snapTo('expanded');
+    } else {
+      snapTo('half');
+    }
+  };
 
   const userDisplayName = user?.displayName || user?.username || 'Traveler';
   const userInitials = (userDisplayName.split(' ').map((n) => n[0]).join('') || 'TR').slice(0, 2).toUpperCase();
@@ -89,34 +148,181 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
     };
   }, [stops, trips, metrics]);
 
-  // Touch gesture drag handlers
+  // Transition decision based on drag distance & flick velocity
+  const finalizeDrag = (deltaY: number, timeMs: number) => {
+    const velocity = deltaY / Math.max(timeMs, 1); // px/ms
+
+    if (snapPosition === 'half') {
+      // Swiping upward (negative delta) expands full; swiping downward (positive delta) collapses completely
+      if (deltaY < -35 || velocity < -0.3) {
+        snapTo('expanded');
+      } else if (deltaY > 35 || velocity > 0.3) {
+        snapTo('collapsed');
+      } else {
+        snapTo('half');
+      }
+    } else if (snapPosition === 'expanded') {
+      // Swiping downward from expanded
+      if (deltaY > 160 || velocity > 0.75) {
+        snapTo('collapsed');
+      } else if (deltaY > 40 || velocity > 0.3) {
+        snapTo('half');
+      } else {
+        snapTo('expanded');
+      }
+    } else if (snapPosition === 'collapsed') {
+      // Swiping upward from collapsed
+      if (deltaY < -160 || velocity < -0.75) {
+        snapTo('expanded');
+      } else if (deltaY < -25 || velocity < -0.25) {
+        snapTo('half');
+      } else {
+        snapTo('collapsed');
+      }
+    }
+  };
+
+  // High-performance touch gesture drag handlers (direct GPU update via requestAnimationFrame)
   const handleTouchStart = (e: React.TouchEvent) => {
     dragStartYRef.current = e.touches[0].clientY;
+    dragStartTimeRef.current = performance.now();
+    isDraggingRef.current = true;
+
+    if (sheetRef.current) {
+      const totalH = sheetRef.current.offsetHeight;
+      sheetHeightRef.current = totalH;
+
+      if (snapPosition === 'expanded') {
+        baseTranslateYRef.current = 0;
+      } else if (snapPosition === 'half') {
+        baseTranslateYRef.current = Math.max(0, totalH - 320);
+      } else {
+        baseTranslateYRef.current = Math.max(0, totalH - 48);
+      }
+
+      // Kill CSS transition immediately on touch down so finger movement has 0ms delay
+      sheetRef.current.style.transition = 'none';
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (dragStartYRef.current === null) return;
-    const deltaY = e.touches[0].clientY - dragStartYRef.current;
+    if (!isDraggingRef.current || dragStartYRef.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const deltaY = currentY - dragStartYRef.current;
     currentDragYRef.current = deltaY;
+
+    const totalH = sheetHeightRef.current || (sheetRef.current?.offsetHeight ?? 600);
+    const maxTranslate = Math.max(0, totalH - 48);
+
+    let targetY = baseTranslateYRef.current + deltaY;
+
+    // Apply natural rubber-band damping beyond outer bounds
+    if (targetY < 0) {
+      targetY = targetY * 0.25;
+    } else if (targetY > maxTranslate) {
+      targetY = maxTranslate + (targetY - maxTranslate) * 0.25;
+    }
+
+    targetYRef.current = targetY;
+
+    // Direct GPU transform update on animation frame (0 React re-renders)
+    if (!rafPendingRef.current) {
+      rafPendingRef.current = true;
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (sheetRef.current && isDraggingRef.current) {
+          sheetRef.current.style.transform = `translate3d(0, ${targetYRef.current}px, 0)`;
+        }
+        rafPendingRef.current = false;
+      });
+    }
   };
 
-  const handleTouchEnd = () => {
-    if (dragStartYRef.current === null) return;
-    const deltaY = currentDragYRef.current;
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isDraggingRef.current || dragStartYRef.current === null) return;
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafPendingRef.current = false;
+    isDraggingRef.current = false;
 
-    // Swipe upward (negative delta) expands; swipe downward (positive delta) collapses
-    if (deltaY < -40) {
-      setIsExpanded(true);
-    } else if (deltaY > 40) {
-      setIsExpanded(false);
-    }
+    const endY = e.changedTouches[0]?.clientY ?? dragStartYRef.current;
+    const deltaY = endY - dragStartYRef.current;
+    const timeElapsed = Math.max(performance.now() - dragStartTimeRef.current, 1);
 
     dragStartYRef.current = null;
     currentDragYRef.current = 0;
+
+    finalizeDrag(deltaY, timeElapsed);
   };
 
-  const toggleExpand = () => {
-    setIsExpanded((prev) => !prev);
+  // High-performance mouse gesture drag handlers (desktop & tablets)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Left button only
+    dragStartYRef.current = e.clientY;
+    dragStartTimeRef.current = performance.now();
+    isDraggingRef.current = true;
+
+    if (sheetRef.current) {
+      const totalH = sheetRef.current.offsetHeight;
+      sheetHeightRef.current = totalH;
+
+      if (snapPosition === 'expanded') {
+        baseTranslateYRef.current = 0;
+      } else if (snapPosition === 'half') {
+        baseTranslateYRef.current = Math.max(0, totalH - 320);
+      } else {
+        baseTranslateYRef.current = Math.max(0, totalH - 48);
+      }
+
+      sheetRef.current.style.transition = 'none';
+    }
+
+    const onMouseMove = (moveEv: MouseEvent) => {
+      if (!isDraggingRef.current || dragStartYRef.current === null) return;
+      const currentY = moveEv.clientY;
+      const deltaY = currentY - dragStartYRef.current;
+      currentDragYRef.current = deltaY;
+
+      const totalH = sheetHeightRef.current || (sheetRef.current?.offsetHeight ?? 600);
+      const maxTranslate = Math.max(0, totalH - 48);
+
+      let targetY = baseTranslateYRef.current + deltaY;
+      if (targetY < 0) {
+        targetY = targetY * 0.25;
+      } else if (targetY > maxTranslate) {
+        targetY = maxTranslate + (targetY - maxTranslate) * 0.25;
+      }
+
+      targetYRef.current = targetY;
+
+      if (!rafPendingRef.current) {
+        rafPendingRef.current = true;
+        rafIdRef.current = requestAnimationFrame(() => {
+          if (sheetRef.current && isDraggingRef.current) {
+            sheetRef.current.style.transform = `translate3d(0, ${targetYRef.current}px, 0)`;
+          }
+          rafPendingRef.current = false;
+        });
+      }
+    };
+
+    const onMouseUp = (upEv: MouseEvent) => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+
+      if (!isDraggingRef.current || dragStartYRef.current === null) return;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafPendingRef.current = false;
+      isDraggingRef.current = false;
+
+      const deltaY = upEv.clientY - dragStartYRef.current;
+      const timeElapsed = Math.max(performance.now() - dragStartTimeRef.current, 1);
+      dragStartYRef.current = null;
+      currentDragYRef.current = 0;
+
+      finalizeDrag(deltaY, timeElapsed);
+    };
+
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('mouseup', onMouseUp);
   };
 
   const activeTrip = useMemo(() => {
@@ -124,51 +330,120 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
     return trips.find((t) => t.id === activeTripId) || null;
   }, [trips, activeTripId]);
 
+  // Snap position heights specification:
+  // - FULLY EXPANDED: 'h-[85vh] sm:h-[88vh]'
+  // - HALF EXPANDED: 'h-[38vh] min-h-[290px] max-h-[350px]'
+  // - FULLY COLLAPSED: 'h-[46px] sm:h-[48px] sm:h-[50px]'
+  const getSnapHeightClass = () => {
+    return 'h-[85vh] sm:h-[88vh]';
+  };
+
   return (
     <div
       ref={sheetRef}
       data-testid="polarsteps-bottom-sheet"
-      className={`lg:hidden fixed inset-x-0 bottom-14 z-30 flex flex-col rounded-t-[28px] sm:rounded-t-[32px] transition-all duration-300 ease-out will-change-[height] shadow-2xl ${
+      data-snap-position={snapPosition}
+      className={`lg:hidden fixed inset-x-0 bottom-14 z-30 flex flex-col rounded-t-[28px] sm:rounded-t-[32px] overflow-hidden will-change-transform shadow-2xl ${getSnapHeightClass()} ${
         isDark
           ? 'bg-slate-900/98 border-t border-slate-800 text-slate-100'
           : 'bg-white/98 border-t border-slate-200 text-slate-900'
-      } ${
-        isExpanded
-          ? 'h-[85vh] sm:h-[88vh]'
-          : 'h-[38vh] min-h-[290px] max-h-[340px]'
       }`}
       style={{
         boxShadow: isDark
           ? '0 -10px 40px -10px rgba(0, 0, 0, 0.7)'
           : '0 -10px 40px -10px rgba(0, 0, 0, 0.12)',
+        transform: getTransformForPosition(snapPosition),
+        transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       {/* ------------------------------------------------------------- */}
-      {/* Draggable Pill Handle (Touch & Click Target) */}
+      {/* Draggable Header Bar (Touch & Mouse Drag Handle Target) */}
       {/* ------------------------------------------------------------- */}
       <div
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={toggleExpand}
-        className="w-full pt-2.5 pb-1 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none flex-shrink-0"
-        aria-label="Drag or tap to expand bottom sheet"
+        onMouseDown={handleMouseDown}
+        className="w-full pt-2 pb-1.5 px-4 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none flex-shrink-0 touch-none"
+        aria-label="Drag or tap to resize bottom sheet"
       >
+        {/* Pill handle bar */}
         <div
-          className={`w-11 h-1.5 rounded-full transition-colors ${
-            isDark ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-300 hover:bg-slate-400'
+          onClick={toggleExpand}
+          className={`w-11 h-1.5 rounded-full transition-colors cursor-pointer ${
+            isDark ? 'bg-slate-700 hover:bg-slate-500' : 'bg-slate-300 hover:bg-slate-400'
           }`}
         />
-        <div className="flex items-center gap-1 text-[10px] font-semibold tracking-wider uppercase mt-1 opacity-60">
-          <span>{isExpanded ? 'Collapse' : 'Swipe Up for Details'}</span>
-          {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-        </div>
+
+        {/* State-specific header navigation & label */}
+        {isCollapsed ? (
+          /* FULLY COLLAPSED VIEW: Minimal indicator bar, reveals almost entire map */
+          <div
+            onClick={() => snapTo('half')}
+            className="w-full flex items-center justify-between mt-1 text-xs font-bold cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm select-none" title="India">🇮🇳</span>
+              <span className="truncate font-extrabold text-[12px]">{userDisplayName}</span>
+              <span className={`text-[10px] font-medium hidden xs:inline ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                • {trips.length} {trips.length === 1 ? 'trip' : 'trips'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-indigo-500 hover:text-indigo-400">
+              <span>Explore Trips</span>
+              <ChevronUp className="w-3.5 h-3.5" />
+            </div>
+          </div>
+        ) : (
+          /* HALF & EXPANDED VIEWS: Status bar with quick 1-tap snap controls */
+          <div className="w-full flex items-center justify-between text-[10px] font-bold tracking-wider uppercase mt-1 px-1 opacity-70">
+            {/* Quick 1-tap Collapse to Map */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                snapTo('collapsed');
+              }}
+              className="flex items-center gap-0.5 hover:opacity-100 text-slate-400 hover:text-slate-200 transition"
+              title="Collapse sheet to reveal full map"
+              aria-label="Collapse to map"
+            >
+              <ChevronDown className="w-3 h-3" />
+              <span>Map View</span>
+            </button>
+
+            <span className="text-[9px] tracking-widest font-extrabold uppercase">
+              {isExpanded ? 'Full Details' : 'Swipe Up for Details'}
+            </span>
+
+            {/* Quick 1-tap Toggle Expand / Half */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isHalf) snapTo('expanded');
+                else snapTo('half');
+              }}
+              className="flex items-center gap-0.5 hover:opacity-100 text-indigo-400 hover:text-indigo-300 transition"
+              title={isExpanded ? 'Return to half view' : 'Expand fully'}
+              aria-label={isExpanded ? 'Half view' : 'Expand full'}
+            >
+              <span>{isExpanded ? 'Half' : 'Expand'}</span>
+              {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* Scrollable Sheet Body */}
+      {/* Scrollable Sheet Body (Hidden when fully collapsed to reveal map) */}
+      {/* Content scroll is completely decoupled from drag gestures */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-1 space-y-4 overscroll-contain">
+      <div 
+        className={`flex-1 overflow-y-auto px-4 sm:px-6 pb-6 pt-1 space-y-4 overscroll-contain ${
+          isCollapsed ? 'hidden' : 'block'
+        }`}
+      >
         
         {/* 1. Polarsteps-Inspired User Profile Row */}
         <div className="flex items-center justify-between gap-3 pt-1">
