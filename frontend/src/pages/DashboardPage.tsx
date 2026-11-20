@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar/Sidebar';
@@ -29,8 +29,34 @@ import { MyTripsModal } from '../components/Trips/MyTripsModal';
 import { EditProfileModal } from '../components/EditProfileModal';
 import { PolarstepsBottomSheet } from '../components/Sidebar/PolarstepsBottomSheet';
 import { MobileBottomNav } from '../components/Navigation/MobileBottomNav';
+import { SettingsModal } from '../components/Navigation/SettingsModal';
 import { useTheme } from '../context/ThemeContext';
-import { Map as MapIcon, ListFilter } from 'lucide-react';
+import { Settings } from 'lucide-react';
+
+function queuePendingSyncTrip(trip: TripCollection, userId: string) {
+  try {
+    const key = `vazhikatti_pending_sync_${userId}`;
+    const raw = localStorage.getItem(key);
+    let list: TripCollection[] = raw ? JSON.parse(raw) : [];
+    list = [trip, ...list.filter((t) => t.id !== trip.id)];
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {}
+}
+
+function clearPendingSyncTrip(tripId: string, userId: string) {
+  try {
+    const key = `vazhikatti_pending_sync_${userId}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    let list: TripCollection[] = JSON.parse(raw);
+    list = list.filter((t) => t.id !== tripId);
+    if (list.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(list));
+    }
+  } catch {}
+}
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -50,6 +76,10 @@ export const DashboardPage: React.FC = () => {
   const [activeStopId, setActiveStopId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'offline'>('saved');
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const isSavingRef = useRef(false);
+  const saveTimeoutRef = useRef<any>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   // Modals state
@@ -78,24 +108,102 @@ export const DashboardPage: React.FC = () => {
     setToast({ ...toastMsg, id });
   };
 
-  // Synchronize trips from backend API with local cache
+  // Synchronize remote trips from PostgreSQL backend for cross-device updates (Laptop <-> Phone)
+  const syncRemoteTrips = useCallback(async () => {
+    if (isSavingRef.current) return;
+    try {
+      const remoteTrips = await fetchUserTrips(userId, user?.token);
+      if (Array.isArray(remoteTrips)) {
+        setTrips((prev) => {
+          // Compare whether server has different stops or collections
+          const isDifferent = JSON.stringify(remoteTrips) !== JSON.stringify(prev);
+          if (isDifferent) {
+            saveLocalTrips(remoteTrips, userId);
+            return remoteTrips;
+          }
+          return prev;
+        });
+        setAutoSaveStatus('saved');
+      }
+    } catch {
+      // Offline / network failure handled gracefully
+    }
+  }, [userId, user?.token]);
+
+  // Flush any pending trip updates queued while offline
+  const flushPendingSyncQueue = useCallback(async () => {
+    try {
+      const key = `vazhikatti_pending_sync_${userId}`;
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const list: TripCollection[] = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) return;
+
+      for (const trip of list) {
+        try {
+          await updateUserTrip(
+            trip.id,
+            {
+              name: trip.name,
+              description: trip.description,
+              stops: trip.stops,
+              travelMode: trip.travelMode,
+              isOptimized: trip.isOptimized,
+            },
+            userId,
+            user?.token
+          );
+          clearPendingSyncTrip(trip.id, userId);
+        } catch {}
+      }
+      setAutoSaveStatus('saved');
+    } catch {}
+  }, [userId, user?.token]);
+
+  // Initial load: populate from cache immediately, then fetch cloud updates and flush pending syncs
   useEffect(() => {
     const local = loadLocalTrips(userId);
     setTrips(local);
     setActiveTripId('ALL');
     setActiveStopId(null);
 
-    fetchUserTrips(userId, user?.token).then((remoteTrips) => {
-      if (Array.isArray(remoteTrips)) {
-        setTrips(remoteTrips);
-        setActiveTripId((prev) => {
-          if (prev === 'ALL') return 'ALL';
-          if (remoteTrips.some((t) => t.id === prev)) return prev;
-          return 'ALL';
-        });
+    syncRemoteTrips();
+    flushPendingSyncQueue();
+  }, [userId, syncRemoteTrips, flushPendingSyncQueue]);
+
+  // Cross-device synchronization on window focus, visibility change, and network reconnect
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncRemoteTrips();
       }
-    });
-  }, [userId, user?.token]);
+    };
+    const handleFocus = () => {
+      syncRemoteTrips();
+    };
+    const handleOnline = () => {
+      syncRemoteTrips();
+      flushPendingSyncQueue();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Periodic gentle background poll (every 25 seconds) to ensure multi-device sync
+    const intervalId = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        syncRemoteTrips();
+      }
+    }, 25000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(intervalId);
+    };
+  }, [syncRemoteTrips, flushPendingSyncQueue]);
 
   // Intelligent onboarding detection: trigger on first login / visit
   useEffect(() => {
@@ -197,24 +305,68 @@ export const DashboardPage: React.FC = () => {
   // Existing trip names for case-insensitive duplicate validation
   const existingTripNames = useMemo(() => trips.map((t) => t.name), [trips]);
 
-  // Helper to persist updated trip list locally and remotely
+  // Helper to persist updated trip list locally and remotely (Immediate UI update + auto-save to cloud)
   const persistTripUpdates = useCallback(
     (updatedTrip: TripCollection) => {
+      // 1. Immediate optimistic state and local storage persistence
       setTrips((prev) => {
         const next = prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t));
         saveLocalTrips(next, userId);
         return next;
       });
-      updateUserTrip(
-        updatedTrip.id,
-        {
-          stops: updatedTrip.stops,
-          travelMode: updatedTrip.travelMode,
-          isOptimized: updatedTrip.isOptimized,
-        },
-        userId,
-        user?.token
-      );
+
+      // 2. Set auto-saving state
+      setIsSaving(true);
+      isSavingRef.current = true;
+      setAutoSaveStatus('saving');
+
+      // Clear existing debounce timer if user is rapidly adding/removing stops
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          // Send update to backend PostgreSQL & API
+          await updateUserTrip(
+            updatedTrip.id,
+            {
+              name: updatedTrip.name,
+              description: updatedTrip.description,
+              stops: updatedTrip.stops,
+              travelMode: updatedTrip.travelMode,
+              isOptimized: updatedTrip.isOptimized,
+            },
+            userId,
+            user?.token
+          );
+
+          // Also synchronize active trip stops with cloud storage fallback
+          const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          if (updatedTrip.stops && updatedTrip.stops.length > 0) {
+            saveTripToStorage(
+              {
+                title: updatedTrip.name,
+                travelMode: updatedTrip.travelMode,
+                stops: updatedTrip.stops,
+                lastSavedAt: timeStr,
+              },
+              userId
+            ).catch(() => {});
+          }
+
+          setLastSavedAt(timeStr);
+          setAutoSaveStatus('saved');
+          clearPendingSyncTrip(updatedTrip.id, userId);
+        } catch (err) {
+          console.warn('[Vazhikatti] Auto-save error, queued for sync:', err);
+          setAutoSaveStatus('offline');
+          queuePendingSyncTrip(updatedTrip, userId);
+        } finally {
+          setIsSaving(false);
+          isSavingRef.current = false;
+        }
+      }, 300);
     },
     [userId, user?.token]
   );
@@ -946,75 +1098,36 @@ export const DashboardPage: React.FC = () => {
     <div className={`h-screen h-[100dvh] flex flex-col font-sans selection:bg-indigo-600 selection:text-white overflow-hidden transition-colors duration-200 ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'
     }`}>
-      {/* Top Navigation Bar */}
-      <Navbar
-        tripTitle={tripTitle}
-        onUpdateTitle={handleUpdateTripTitle}
-        isSaving={isSaving}
-        lastSavedAt={lastSavedAt}
-        onSaveTrip={handleSaveTrip}
-        onResetTrip={handleRequestReset}
-        stopsCount={currentStops.length}
-        travelMode={travelMode}
-        stops={currentStops}
-        onOpenOnboarding={() => setIsOnboardingOpen(true)}
-        trips={trips}
-        activeTripId={activeTripId}
-        onSelectTrip={setActiveTripId}
-        onCreateNewTrip={() => setIsCreateTripModalOpen(true)}
-        onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
-        activeMobileTab={mobileView}
-        onSelectMobileTab={(tab) => {
-          setMobileView(tab);
-          setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-          setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
-        }}
-      />
-
-      {/* Mobile / Tablet Tab Toggle Bar */}
-      <div className={`lg:hidden px-3 py-2 flex-shrink-0 z-30 backdrop-blur-md border-b transition-colors duration-200 ${
-        isDark ? 'bg-slate-950/95 border-slate-800/90' : 'bg-white/95 border-slate-200/90'
-      }`}>
-        <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-2xl border shadow-inner ${
-          isDark ? 'bg-slate-900/90 border-slate-800/80' : 'bg-slate-100/90 border-slate-200/80'
-        }`}>
-          <button
-            type="button"
-            onClick={() => {
-              setMobileView('map');
-              setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
-              setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
-            }}
-            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-200 min-h-[40px] select-none ${
-              mobileView === 'map'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-extrabold'
-                : isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-            aria-selected={mobileView === 'map'}
-            role="tab"
-          >
-            <MapIcon className="w-4 h-4" />
-            <span>Interactive Map</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMobileView('sidebar')}
-            className={`flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-200 min-h-[40px] select-none ${
-              mobileView === 'sidebar'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/30 font-extrabold'
-                : isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-            }`}
-            aria-selected={mobileView === 'sidebar'}
-            role="tab"
-          >
-            <ListFilter className="w-4 h-4" />
-            <span>Trip Plan ({currentStops.length})</span>
-          </button>
-        </div>
+      {/* Desktop Top Navigation Bar (Hidden on Mobile & Tablet, Available on Desktop) */}
+      <div className="hidden lg:block flex-shrink-0">
+        <Navbar
+          tripTitle={tripTitle}
+          onUpdateTitle={handleUpdateTripTitle}
+          isSaving={isSaving}
+          lastSavedAt={lastSavedAt}
+          onSaveTrip={handleSaveTrip}
+          onResetTrip={handleRequestReset}
+          stopsCount={currentStops.length}
+          travelMode={travelMode}
+          stops={currentStops}
+          onOpenOnboarding={() => setIsOnboardingOpen(true)}
+          trips={trips}
+          activeTripId={activeTripId}
+          onSelectTrip={setActiveTripId}
+          onCreateNewTrip={() => setIsCreateTripModalOpen(true)}
+          onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          autoSaveStatus={autoSaveStatus}
+          activeMobileTab={mobileView}
+          onSelectMobileTab={(tab) => {
+            setMobileView(tab);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+          }}
+        />
       </div>
 
-      {/* Main Workspace Layout */}
+      {/* Main Workspace Layout (Both Mobile Top Navigation Bars Removed - Clean Map First) */}
       <main className="flex-1 w-full min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Sidebar Panel (Trip Plan Dedicated View) */}
         <div
@@ -1061,6 +1174,30 @@ export const DashboardPage: React.FC = () => {
             mobileView === 'map' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
           }`}
         >
+          {/* Polarsteps Single Floating Settings Icon (Mobile & Tablet) */}
+          <button
+            type="button"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className={`fixed top-4 right-4 z-40 lg:hidden w-11 h-11 rounded-full backdrop-blur-md shadow-lg border flex items-center justify-center transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
+              isDark
+                ? 'bg-slate-900/85 text-slate-200 border-slate-700/80 hover:bg-slate-900 hover:text-white shadow-black/40'
+                : 'bg-white/90 text-slate-700 border-slate-200 hover:bg-white hover:text-slate-950 shadow-slate-900/10'
+            }`}
+            style={{
+              marginTop: 'env(safe-area-inset-top, 0px)',
+            }}
+            aria-label="Open Settings"
+            title="Settings & Map Controls"
+            data-testid="polarsteps-settings-button"
+          >
+            <Settings className="w-5 h-5 text-current" />
+            {isSaving ? (
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-900 animate-ping" />
+            ) : autoSaveStatus === 'offline' ? (
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-500 border-2 border-white dark:border-slate-900" />
+            ) : null}
+          </button>
+
           <InteractiveMap
             stops={currentStops}
             activeStopId={activeStopId}
@@ -1215,6 +1352,28 @@ export const DashboardPage: React.FC = () => {
         isOpen={isEditProfileOpen}
         onClose={() => setIsEditProfileOpen(false)}
         onSuccess={(msg) => setToast({ id: Date.now().toString(), type: 'success', title: msg })}
+      />
+
+      {/* Polarsteps Settings Modal (Houses all actions from the removed top bars) */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        activeView={mobileView}
+        onSelectView={(v) => {
+          setMobileView(v);
+          setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+          setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+        }}
+        stopsCount={currentStops.length}
+        tripsCount={trips.length}
+        onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
+        onOpenShare={() => setIsShareModalOpen(true)}
+        onResetRoute={handleRequestReset}
+        onOpenHelp={() => setIsOnboardingOpen(true)}
+        onOpenEditProfile={() => setIsEditProfileOpen(true)}
+        isSaving={isSaving}
+        lastSavedAt={lastSavedAt}
+        autoSaveStatus={autoSaveStatus}
       />
 
       {/* Notification Toast */}

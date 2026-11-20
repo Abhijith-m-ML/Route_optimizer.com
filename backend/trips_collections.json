@@ -1922,5 +1922,16 @@
     "isOptimized": false,
     "createdAt": "2026-11-02T14:07:44.221Z",
     "updatedAt": "2026-11-02T15:19:01.219Z"
+  },
+  "trip_1795169223166_zz58z": {
+    "id": "trip_1795169223166_zz58z",
+    "userId": "usr_g_111678398476566058388",
+    "name": "adsfc",
+    "description": "",
+    "travelMode": "DRIVING",
+    "stops": [],
+    "isOptimized": false,
+    "createdAt": "2026-11-20T10:07:03.167Z",
+    "updatedAt": "2026-11-20T10:07:03.167Z"
   }
 }

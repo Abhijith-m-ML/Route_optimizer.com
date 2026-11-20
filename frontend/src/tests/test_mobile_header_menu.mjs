@@ -40,7 +40,10 @@ assert(navbarCode.includes('title="How to use Vazhikatti"'), 'Help button preser
 assert(navbarCode.includes('title="Open My Trips Collections"'), 'My Trips (Compass) button preserved');
 assert(navbarCode.includes('title="Share destinations & trips"'), 'Share button preserved');
 assert(navbarCode.includes('title="Reset current route"'), 'Reset button preserved');
-assert(navbarCode.includes('title="Save your trip"'), 'Save button preserved');
+assert(
+  navbarCode.includes('Auto-Saved') || navbarCode.includes('Saved'),
+  'Auto-save indicator displayed instead of manual save button'
+);
 assert(
   navbarCode.includes('aria-label="User profile menu"') || navbarCode.includes('to="/login"'),
   'User profile / Sign In button preserved'

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Compass, 
-  Bookmark, 
   Check, 
   Share2, 
   RotateCcw, 
@@ -17,7 +16,11 @@ import {
   Edit2,
   Camera,
   Sun,
-  Moon
+  Moon,
+  Settings,
+  CheckCircle2,
+  Loader2,
+  CloudOff
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -31,7 +34,7 @@ interface NavbarProps {
   onUpdateTitle: (title: string) => void;
   isSaving: boolean;
   lastSavedAt: string | null;
-  onSaveTrip: () => void;
+  onSaveTrip?: () => void;
   onResetTrip: () => void;
   stopsCount: number;
   travelMode?: TravelMode;
@@ -43,6 +46,8 @@ interface NavbarProps {
   onSelectTrip?: (tripId: string | 'ALL') => void;
   onCreateNewTrip?: () => void;
   onOpenMyTrips?: () => void;
+  onOpenSettings?: () => void;
+  autoSaveStatus?: 'idle' | 'saving' | 'saved' | 'offline';
   activeMobileTab?: 'map' | 'sidebar';
   onSelectMobileTab?: (tab: 'map' | 'sidebar') => void;
 }
@@ -52,7 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onUpdateTitle,
   isSaving,
   lastSavedAt,
-  onSaveTrip,
+  onSaveTrip: _onSaveTrip,
   onResetTrip,
   stopsCount,
   travelMode = 'DRIVING',
@@ -64,6 +69,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectTrip,
   onCreateNewTrip,
   onOpenMyTrips,
+  onOpenSettings,
+  autoSaveStatus = 'saved',
   activeMobileTab = 'map',
   onSelectMobileTab,
 }) => {
@@ -262,25 +269,61 @@ export const Navbar: React.FC<NavbarProps> = ({
             <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
 
-          {/* Save Trip Button */}
-          <button
-            onClick={onSaveTrip}
-            disabled={isSaving}
-            className="flex items-center justify-center space-x-1 sm:space-x-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98] text-white h-8 sm:h-9 md:h-10 px-2 sm:px-3 md:px-4 rounded-xl text-xs md:text-sm font-semibold shadow-md shadow-indigo-600/25 transition-all duration-200 border border-indigo-400/20 disabled:opacity-70 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
-            title="Save your trip"
+          {/* Automatic Cloud Save Status Indicator (Desktop) */}
+          <div
+            className={`hidden sm:flex items-center gap-1.5 h-8 sm:h-9 md:h-10 px-2.5 sm:px-3 rounded-xl border text-xs font-semibold select-none flex-shrink-0 transition-colors ${
+              autoSaveStatus === 'offline'
+                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                : isSaving
+                ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                : lastSavedAt
+                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                : 'bg-slate-800/60 text-slate-400 border-slate-700/60'
+            }`}
+            title={
+              autoSaveStatus === 'offline'
+                ? 'Offline mode - saved locally, will sync when reconnected'
+                : isSaving
+                ? 'Saving places automatically to cloud...'
+                : lastSavedAt
+                ? `All places automatically saved at ${lastSavedAt}`
+                : 'Automatic cloud saving active'
+            }
           >
-            {isSaving ? (
+            {autoSaveStatus === 'offline' ? (
               <>
-                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="hidden sm:inline">Saving...</span>
+                <CloudOff className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                <span className="hidden md:inline">Saved locally</span>
+              </>
+            ) : isSaving ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400 flex-shrink-0" />
+                <span className="hidden md:inline">Saving...</span>
+              </>
+            ) : lastSavedAt ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <span className="hidden md:inline">Saved {lastSavedAt}</span>
               </>
             ) : (
               <>
-                <Bookmark className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-white/20" />
-                <span className="text-[11px] sm:text-xs md:text-sm">Save</span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400/80 flex-shrink-0" />
+                <span className="hidden md:inline">Auto-Saved</span>
               </>
             )}
-          </button>
+          </div>
+
+          {/* Desktop Settings Button */}
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="hidden sm:flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-xl text-slate-300 hover:text-indigo-400 active:text-indigo-300 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 transition flex-shrink-0 shadow-sm"
+              title="Settings & Map Options"
+              aria-label="Settings and options"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
 
           {/* User Account / Profile Button (Hidden on Mobile, Available on Desktop & in Mobile Drawer) */}
           {user ? (

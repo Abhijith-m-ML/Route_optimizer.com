@@ -805,8 +805,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </div>
           </div>
 
-          {/* Top-Right Custom Map Toolbar */}
-          <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex flex-col space-y-1 sm:space-y-1.5 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border shadow-xl pointer-events-auto transition-colors ${
+          {/* Custom Map Toolbar (Positioned below Polarsteps Settings button on mobile) */}
+          <div className={`absolute top-16 right-3 sm:top-20 sm:right-4 lg:top-4 lg:right-4 z-20 flex flex-col space-y-1 sm:space-y-1.5 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border shadow-xl pointer-events-auto transition-colors ${
             isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-200 text-slate-800 shadow-md'
           }`}>
             {/* Zoom In */}
