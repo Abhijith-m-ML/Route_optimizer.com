@@ -125,14 +125,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pt-[max(12px,env(safe-area-inset-top,0px))] pb-[max(12px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] bg-slate-950/80 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-profile-title"
     >
       <div
-        className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 overflow-hidden animate-scale-up"
+        className="relative w-full max-w-md max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-slate-100 overflow-y-auto animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -219,13 +219,13 @@ export const SearchPage: React.FC = () => {
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 pb-20 ${
+      className={`min-h-[100dvh] flex flex-col font-sans transition-colors duration-200 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] ${
         isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
       }`}
     >
       {/* Top Search Header */}
       <header
-        className={`sticky top-0 z-30 pt-safe px-4 sm:px-6 py-4 backdrop-blur-xl border-b transition-colors duration-200 ${
+        className={`sticky top-0 z-30 pt-safe px-4 sm:px-6 py-4 pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] backdrop-blur-xl border-b transition-colors duration-200 ${
           isDark
             ? 'bg-slate-950/90 border-slate-800/80'
             : 'bg-white/90 border-slate-200/90 shadow-xs'

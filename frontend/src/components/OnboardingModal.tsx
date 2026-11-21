@@ -123,7 +123,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pt-[max(12px,env(safe-area-inset-top,0px))] pb-[max(12px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
       role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
@@ -132,7 +132,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       }}
     >
       <div 
-        className="w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-5 sm:p-7 text-slate-100 flex flex-col max-h-[92dvh] overflow-y-auto my-auto animate-in zoom-in-95 duration-200"
+        className="w-full max-w-lg bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl p-5 sm:p-7 text-slate-100 flex flex-col max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] overflow-y-auto my-auto animate-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-labelledby="onboarding-step-title"

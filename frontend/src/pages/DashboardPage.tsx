@@ -1135,7 +1135,7 @@ export const DashboardPage: React.FC = () => {
       <main className="flex-1 w-full min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Sidebar Panel (Trip Plan Dedicated View) */}
         <div
-          className={`w-full lg:w-[35%] xl:w-[34%] h-full flex-shrink-0 min-h-0 pb-14 lg:pb-0 ${
+          className={`w-full lg:w-[35%] xl:w-[34%] h-full flex-shrink-0 min-h-0 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0 pt-safe lg:pt-0 pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] lg:pl-0 lg:pr-0 ${
             mobileView === 'sidebar' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'
           }`}
         >
@@ -1189,6 +1189,7 @@ export const DashboardPage: React.FC = () => {
             }`}
             style={{
               marginTop: 'env(safe-area-inset-top, 0px)',
+              marginRight: 'env(safe-area-inset-right, 0px)',
             }}
             aria-label="Open Settings"
             title="Settings & Map Controls"

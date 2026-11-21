@@ -31,14 +31,14 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({ isOpen, onClos
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pt-[max(12px,env(safe-area-inset-top,0px))] pb-[max(12px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Install Vazhikatti App"
     >
       <div
-        className={`w-full max-w-md max-h-[92vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-all duration-200 animate-scale-up ${
+        className={`w-full max-w-md max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] flex flex-col rounded-3xl border shadow-2xl overflow-hidden transition-all duration-200 animate-scale-up ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-black/70'
             : 'bg-white border-slate-200 text-slate-900 shadow-slate-900/20'

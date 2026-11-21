@@ -118,7 +118,7 @@ export const SharedTripPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-slate-100 p-4">
+      <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center text-slate-100 p-4 pt-safe pb-safe pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))]">
         <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 shadow-xl">
           <Loader2 className="w-6 h-6 text-[#05df72] animate-spin" />
         </div>
@@ -130,7 +130,7 @@ export const SharedTripPage: React.FC = () => {
 
   if (error || !sharedData) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4 sm:p-6 font-sans">
+      <div className="min-h-[100dvh] bg-black flex items-center justify-center p-4 sm:p-6 font-sans pt-safe pb-safe pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))]">
         <div className="w-full max-w-[620px] bg-black border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative flex flex-col my-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-6 sm:mb-8">
@@ -181,7 +181,7 @@ export const SharedTripPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-indigo-600 selection:text-white">
+    <div className="min-h-[100dvh] bg-black flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-indigo-600 selection:text-white pt-safe pb-safe pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))]">
       {/* Centered Container with thin dark-grey border and rounded corners */}
       <div className="w-full max-w-[620px] bg-black border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative flex flex-col my-auto transition-all">
         

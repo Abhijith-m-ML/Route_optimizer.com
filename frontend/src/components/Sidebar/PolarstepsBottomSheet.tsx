@@ -346,7 +346,7 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
   // - HALF EXPANDED: 'h-[38vh] min-h-[290px] max-h-[350px]'
   // - FULLY COLLAPSED: 'h-[46px] sm:h-[48px] sm:h-[50px]'
   const getSnapHeightClass = () => {
-    return 'h-[85vh] sm:h-[88vh]';
+    return 'h-[85vh] h-[calc(85dvh-env(safe-area-inset-bottom,0px))] sm:h-[88dvh] max-h-[calc(100dvh-3.5rem-env(safe-area-inset-bottom,0px)-env(safe-area-inset-top,0px)-0.5rem)]';
   };
 
   return (
@@ -354,12 +354,13 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
       ref={sheetRef}
       data-testid="polarsteps-bottom-sheet"
       data-snap-position={snapPosition}
-      className={`lg:hidden fixed inset-x-0 bottom-14 z-30 flex flex-col rounded-t-[28px] sm:rounded-t-[32px] overflow-hidden will-change-transform shadow-2xl ${getSnapHeightClass()} ${
+      className={`lg:hidden fixed inset-x-0 bottom-14 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] z-30 flex flex-col rounded-t-[28px] sm:rounded-t-[32px] overflow-hidden will-change-transform shadow-2xl ${getSnapHeightClass()} ${
         isDark
           ? 'bg-slate-900/98 border-t border-slate-800 text-slate-100'
           : 'bg-white/98 border-t border-slate-200 text-slate-900'
       }`}
       style={{
+        bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))',
         boxShadow: isDark
           ? '0 -10px 40px -10px rgba(0, 0, 0, 0.7)'
           : '0 -10px 40px -10px rgba(0, 0, 0, 0.12)',

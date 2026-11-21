@@ -135,7 +135,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 selection:bg-indigo-600 selection:text-white relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 pt-safe pb-safe pl-[max(16px,env(safe-area-inset-left,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] selection:bg-indigo-600 selection:text-white relative overflow-hidden">
       {/* Background Ambience Gradient */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-radial from-indigo-900/20 via-blue-950/10 to-transparent blur-3xl pointer-events-none" />
 

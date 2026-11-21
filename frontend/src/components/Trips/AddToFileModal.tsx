@@ -180,14 +180,14 @@ export const AddToFileModal: React.FC<AddToFileModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Add Destination to File"
     >
       <div
-        className={`w-full sm:max-w-md max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl border shadow-2xl overflow-hidden transition-all duration-200 pb-safe ${
+        className={`w-full sm:max-w-md max-h-[calc(100dvh-1.5rem-env(safe-area-inset-top,0px))] flex flex-col rounded-t-3xl sm:rounded-3xl border shadow-2xl overflow-hidden transition-all duration-200 pb-safe ${
           isDark
             ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-black/60'
             : 'bg-white border-slate-200 text-slate-900 shadow-slate-900/20'

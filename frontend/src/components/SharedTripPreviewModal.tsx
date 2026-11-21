@@ -38,13 +38,13 @@ export const SharedTripPreviewModal: React.FC<SharedTripPreviewModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black min-h-screen overflow-y-auto selection:bg-indigo-600 selection:text-white"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 pt-[max(12px,env(safe-area-inset-top,0px))] pb-[max(12px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] bg-black min-h-[100dvh] overflow-y-auto selection:bg-indigo-600 selection:text-white"
       role="dialog"
       aria-modal="true"
       aria-label="Trip Invitation"
     >
       {/* Centered Container with thin dark-grey border and rounded corners */}
-      <div className="w-full max-w-[620px] bg-black border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative flex flex-col my-auto transition-all">
+      <div className="w-full max-w-[620px] max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] bg-black border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative flex flex-col my-auto transition-all overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-6 sm:mb-8">

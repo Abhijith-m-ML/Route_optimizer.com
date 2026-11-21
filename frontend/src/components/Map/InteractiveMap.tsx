@@ -985,7 +985,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       {status === 'ready' && (
         <>
           {/* Top-Left HUD Info Pill */}
-          <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-20 pointer-events-auto max-w-[calc(100vw-110px)] sm:max-w-none">
+          <div className="absolute top-[max(12px,calc(env(safe-area-inset-top,0px)+8px))] left-[max(12px,calc(env(safe-area-inset-left,0px)+8px))] lg:top-4 lg:left-4 z-20 pointer-events-auto max-w-[calc(100vw-110px)] sm:max-w-none">
             <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1.5 sm:px-3.5 sm:py-2 shadow-xl flex items-center space-x-2 sm:space-x-2.5">
               <div className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
               <div className="text-xs min-w-0">
@@ -1010,7 +1010,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           </div>
 
           {/* Custom Map Toolbar (Positioned below Polarsteps Settings button on mobile) */}
-          <div className={`absolute top-16 right-3 sm:top-20 sm:right-4 lg:top-4 lg:right-4 z-20 flex flex-col space-y-1 sm:space-y-1.5 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border shadow-xl pointer-events-auto transition-colors ${
+          <div className={`absolute top-[max(68px,calc(env(safe-area-inset-top,0px)+64px))] right-[max(12px,calc(env(safe-area-inset-right,0px)+12px))] lg:top-4 lg:right-4 z-20 flex flex-col space-y-1 sm:space-y-1.5 backdrop-blur-md p-1 sm:p-1.5 rounded-xl border shadow-xl pointer-events-auto transition-colors ${
             isDark ? 'bg-slate-900/90 border-slate-800 text-slate-300' : 'bg-white/95 border-slate-200 text-slate-800 shadow-md'
           }`}>
             {/* Zoom In */}
@@ -1139,7 +1139,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           {mobileSelectedStop && (
             <div 
               data-testid="mobile-destination-card"
-              className={`lg:hidden fixed z-50 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-md bottom-[84px] bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px)+8px)] pointer-events-auto rounded-2xl p-3.5 shadow-2xl transition-all duration-200 animate-in slide-in-from-bottom-3 ${
+              className={`lg:hidden fixed z-50 left-[max(12px,calc(env(safe-area-inset-left,0px)+12px))] right-[max(12px,calc(env(safe-area-inset-right,0px)+12px))] sm:left-4 sm:right-auto sm:max-w-md bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px)+10px)] pointer-events-auto rounded-2xl p-3.5 shadow-2xl transition-all duration-200 animate-in slide-in-from-bottom-3 ${
                 isDark
                   ? 'bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 text-white shadow-black/50'
                   : 'bg-white/95 backdrop-blur-xl border border-slate-200/90 text-slate-900 shadow-slate-900/20'

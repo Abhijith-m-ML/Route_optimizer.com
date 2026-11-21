@@ -179,9 +179,9 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({
   const totalAllPlaces = trips.reduce((acc, t) => acc + (t.stops?.length || 0), stops.length);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 pt-[max(12px,env(safe-area-inset-top,0px))] pb-[max(12px,env(safe-area-inset-bottom,0px))] pl-[max(12px,env(safe-area-inset-left,0px))] pr-[max(12px,env(safe-area-inset-right,0px))] bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
       <div 
-        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col max-h-[90dvh] overflow-y-auto my-auto"
+        className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-4 sm:p-6 text-slate-100 flex flex-col max-h-[calc(100dvh-2rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] overflow-y-auto my-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-dialog-title"
