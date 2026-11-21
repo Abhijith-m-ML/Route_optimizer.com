@@ -32,6 +32,8 @@ import { EditProfileModal } from '../components/EditProfileModal';
 import { PolarstepsBottomSheet } from '../components/Sidebar/PolarstepsBottomSheet';
 import { MobileBottomNav } from '../components/Navigation/MobileBottomNav';
 import { SettingsModal } from '../components/Navigation/SettingsModal';
+import { InstallAppModal } from '../components/Navigation/InstallAppModal';
+import { usePWA } from '../context/PWAContext';
 import { useTheme } from '../context/ThemeContext';
 import { Settings } from 'lucide-react';
 
@@ -63,6 +65,7 @@ function clearPendingSyncTrip(tripId: string, userId: string) {
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const { isDark } = useTheme();
+  const { isInstallModalOpen, closeInstallModal, hasUpdate, applyUpdate } = usePWA();
   const navigate = useNavigate();
   const userId = user?.uid || user?.email || user?.displayName || 'guest';
 
@@ -1380,6 +1383,30 @@ export const DashboardPage: React.FC = () => {
         lastSavedAt={lastSavedAt}
         autoSaveStatus={autoSaveStatus}
       />
+
+      {/* PWA Direct Installation Guide Modal */}
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={closeInstallModal}
+      />
+
+      {/* New Version Deployment Update Notification */}
+      {hasUpdate && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 text-white text-xs font-bold py-2 px-4 rounded-full shadow-2xl flex items-center gap-2.5 border border-white/20 animate-bounce"
+        >
+          <span>New update available!</span>
+          <button
+            type="button"
+            onClick={applyUpdate}
+            className="bg-white text-indigo-700 hover:bg-slate-100 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold shadow-sm transition"
+          >
+            Update Now
+          </button>
+        </aside>
+      )}
 
       {/* Notification Toast */}
       <Toast toast={toast} onClose={() => setToast(null)} />

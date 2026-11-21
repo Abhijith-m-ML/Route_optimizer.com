@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { PWAProvider } from './context/PWAContext';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 import { PublicOnlyRoute } from './components/Auth/PublicOnlyRoute';
 import { LoginPage } from './pages/LoginPage';
@@ -26,7 +27,8 @@ export const App: React.FC = () => {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <Routes>
+          <PWAProvider>
+            <Routes>
           {/* Public Short Share Link Route */}
           <Route path="/s/:shareId" element={<SharedTripPage />} />
 
@@ -80,6 +82,7 @@ export const App: React.FC = () => {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
+        </PWAProvider>
       </AuthProvider>
     </ThemeProvider>
   </BrowserRouter>

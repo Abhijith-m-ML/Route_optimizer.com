@@ -1,0 +1,75 @@
+{
+  "name": "Vazhikatti",
+  "short_name": "Vazhikatti",
+  "description": "Vazhikatti - Smart Route Optimizer. Plan journeys, reorder stops, and optimize travel routes with real-time distance and time estimates.",
+  "id": "/dashboard",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "theme_color": "#020617",
+  "background_color": "#020617",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "travel",
+    "navigation",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Plan Route",
+      "short_name": "Route",
+      "description": "Open your active route in Vazhikatti",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Search Places",
+      "short_name": "Search",
+      "description": "Search destinations across India",
+      "url": "/search",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

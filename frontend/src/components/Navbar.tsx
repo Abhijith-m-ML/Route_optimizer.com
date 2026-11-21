@@ -20,10 +20,12 @@ import {
   Settings,
   CheckCircle2,
   Loader2,
-  CloudOff
+  CloudOff,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { usePWA } from '../context/PWAContext';
 import { ShareDialog } from './ShareDialog';
 import { EditProfileModal } from './EditProfileModal';
 import { TripSelector } from './Trips/TripSelector';
@@ -83,6 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const { user, logout } = useAuth();
   const { toggleTheme, isDark } = useTheme();
+  const { isInstalled, openInstallModal } = usePWA();
   const navigate = useNavigate();
 
   // Close mobile drawer on Escape key press
@@ -399,6 +402,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
                     )}
 
+                    {!isInstalled && (
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          openInstallModal();
+                        }}
+                        className="w-full flex items-center space-x-2.5 px-3.5 py-2 text-xs font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition text-left"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Install App (PWA)</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         toggleTheme();
@@ -639,6 +655,26 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-3 py-1 block">
                 Preferences & Support
               </span>
+
+              {/* Install App (PWA) Button */}
+              {!isInstalled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileDrawerOpen(false);
+                    openInstallModal();
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <Download className="w-4 h-4 flex-shrink-0" />
+                    <span>Install Vazhikatti App</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    PWA
+                  </span>
+                </button>
+              )}
 
               {/* Theme Toggle (Light / Dark Mode) */}
               <button

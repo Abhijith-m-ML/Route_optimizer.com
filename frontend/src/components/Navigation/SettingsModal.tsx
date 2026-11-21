@@ -17,10 +17,13 @@ import {
   CheckCircle2,
   Loader2,
   CloudOff,
-  Search
+  Search,
+  Download,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { usePWA } from '../../context/PWAContext';
 
 export interface SettingsModalProps {
   isOpen: boolean;
@@ -57,6 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { isInstalled, isIOS, openInstallModal, hasUpdate, applyUpdate } = usePWA();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -386,6 +390,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Switch to {isDark ? 'Light' : 'Dark'}
               </button>
             </div>
+          </div>
+
+          {/* Section: Application & PWA Installation */}
+          <div className="space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block px-1">
+              App & Installation
+            </span>
+
+            {/* If New Version Update is Available */}
+            {hasUpdate && (
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between gap-3 ${
+                  isDark ? 'bg-cyan-950/30 border-cyan-800/40 text-cyan-300' : 'bg-cyan-50 border-cyan-200 text-cyan-800'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0 animate-pulse" />
+                  <span className="text-xs font-bold truncate">New Version Available</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={applyUpdate}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 transition flex-shrink-0"
+                >
+                  Update
+                </button>
+              </div>
+            )}
+
+            {/* PWA Installation Card */}
+            {isInstalled ? (
+              <div
+                className={`p-3 rounded-2xl border flex items-center justify-between ${
+                  isDark ? 'bg-slate-800/40 border-slate-800' : 'bg-slate-50 border-slate-200/80'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold">App Installed (PWA)</p>
+                    <p className="text-[11px] text-slate-400">Running as standalone app</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  Installed
+                </span>
+              </div>
+            ) : (
+              <div
+                className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                  isDark
+                    ? 'bg-gradient-to-r from-indigo-950/40 to-cyan-950/30 border-indigo-800/40'
+                    : 'bg-gradient-to-r from-indigo-50/80 to-cyan-50/60 border-indigo-200/80'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 flex-shrink-0">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate">Install Vazhikatti App</p>
+                    <p className="text-[11px] text-slate-400 truncate">
+                      {isIOS ? 'Add to iPhone / iPad Home Screen' : 'Install for Android & Desktop'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    openInstallModal();
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-sm shadow-indigo-600/30 transition flex-shrink-0 flex items-center gap-1.5"
+                  data-testid="settings-install-pwa-btn"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Install</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Section 4: Help and Support */}
