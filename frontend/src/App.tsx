@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PWAProvider } from './context/PWAContext';
@@ -85,6 +86,7 @@ export const App: React.FC = () => {
         </PWAProvider>
       </AuthProvider>
     </ThemeProvider>
+    <Analytics />
   </BrowserRouter>
   );
 };
