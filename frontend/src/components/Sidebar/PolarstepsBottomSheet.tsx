@@ -11,7 +11,8 @@ import {
   Navigation,
   Compass,
   ArrowRight,
-  Edit2
+  Edit2,
+  Settings
 } from 'lucide-react';
 import type { RouteMetrics, SelectedStop, TravelMode, TripCollection } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -31,6 +32,7 @@ export interface PolarstepsBottomSheetProps {
   onOpenMyTrips: () => void;
   onOpenShare: () => void;
   onOpenEditProfile?: () => void;
+  onOpenSettings?: () => void;
   onOpenTripPlan?: () => void;
   onOpenStats?: () => void;
   travelMode?: TravelMode;
@@ -51,6 +53,7 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
   onOpenMyTrips,
   onOpenShare,
   onOpenEditProfile,
+  onOpenSettings,
   onOpenTripPlan,
   onOpenStats,
   travelMode: _travelMode = 'DRIVING',
@@ -441,15 +444,33 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
           </div>
 
           {/* Name & Origin Flag */}
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-base sm:text-lg tracking-tight truncate">
-                {userDisplayName}
-              </h3>
-              {/* Country Flag Badge (India default for Vazhikatti) */}
-              <span className="text-base select-none" title="India">
-                🇮🇳
-              </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-extrabold text-base sm:text-lg tracking-tight truncate">
+                  {userDisplayName}
+                </h3>
+                {/* Country Flag Badge (India default for Vazhikatti) */}
+                <span className="text-base select-none flex-shrink-0" title="India">
+                  🇮🇳
+                </span>
+              </div>
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className={`p-2 rounded-xl transition flex-shrink-0 ${
+                    isDark
+                      ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                  }`}
+                  title="Settings & App Installation"
+                  aria-label="Settings"
+                  data-testid="bottom-sheet-settings-btn"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         </div>

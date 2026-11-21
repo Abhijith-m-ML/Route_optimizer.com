@@ -1224,6 +1224,7 @@ export const DashboardPage: React.FC = () => {
             onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
             onOpenShare={() => setIsShareModalOpen(true)}
             onOpenEditProfile={() => setIsEditProfileOpen(true)}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
             onOpenTripPlan={() => {
               setMobileView('sidebar');
               setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
@@ -1252,7 +1253,7 @@ export const DashboardPage: React.FC = () => {
         onOptimizeRoute={handleOptimizeRoute}
         onOpenShare={() => setIsShareModalOpen(true)}
         onOpenMyTrips={() => setIsMyTripsModalOpen(true)}
-        onOpenProfile={() => setIsEditProfileOpen(true)}
+        onOpenProfile={() => setIsSettingsModalOpen(true)}
         stopsCount={currentStops.length}
         tripsCount={trips.length}
         isOptimized={isOptimized}

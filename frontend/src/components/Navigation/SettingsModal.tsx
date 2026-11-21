@@ -19,7 +19,10 @@ import {
   CloudOff,
   Search,
   Download,
-  Sparkles
+  Sparkles,
+  Share,
+  PlusSquare,
+  Smartphone
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -60,7 +63,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { isInstalled, isIOS, openInstallModal, hasUpdate, applyUpdate } = usePWA();
+  const { isInstalled, canInstall, isIOS, openInstallModal, promptInstall, hasUpdate, applyUpdate } = usePWA();
   const navigate = useNavigate();
 
   if (!isOpen) return null;
@@ -439,7 +442,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Installed
                 </span>
               </div>
-            ) : (
+            ) : isIOS ? (
+              /* iPhone / iPad Safari Installation */
+              <div
+                className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                  isDark
+                    ? 'bg-gradient-to-r from-indigo-950/40 to-cyan-950/30 border-indigo-800/40'
+                    : 'bg-gradient-to-r from-indigo-50/80 to-cyan-50/60 border-indigo-200/80'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/30 flex-shrink-0">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">Install on iPhone / iPad</p>
+                      <p className="text-[11px] text-slate-400 truncate">Safari: Share &rarr; Add to Home Screen</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openInstallModal();
+                    }}
+                    className="px-2.5 py-1 rounded-xl text-xs font-bold text-indigo-400 hover:text-white hover:bg-indigo-600/30 border border-indigo-500/30 transition flex-shrink-0"
+                  >
+                    View Guide
+                  </button>
+                </div>
+                <div className={`p-2.5 rounded-xl border text-[11px] space-y-1 ${
+                  isDark ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-white/80 border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
+                    <span>Tap <strong>Share</strong> in Safari bottom toolbar</span>
+                    <Share className="w-3 h-3 text-blue-400 inline" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</span>
+                    <span>Scroll and tap <strong>Add to Home Screen</strong></span>
+                    <PlusSquare className="w-3 h-3 text-indigo-400 inline" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold flex-shrink-0">3</span>
+                    <span>Tap <strong>Add</strong> in top-right corner</span>
+                  </div>
+                </div>
+              </div>
+            ) : canInstall ? (
+              /* Browser with Native beforeinstallprompt support */
               <div
                 className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
                   isDark
@@ -454,16 +507,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="min-w-0">
                     <p className="text-xs font-bold truncate">Install Vazhikatti App</p>
                     <p className="text-[11px] text-slate-400 truncate">
-                      {isIOS ? 'Add to iPhone / iPad Home Screen' : 'Install for Android & Desktop'}
+                      Fast, full-screen map & offline access
                     </p>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    openInstallModal();
+                  onClick={async () => {
+                    await promptInstall();
                   }}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-sm shadow-indigo-600/30 transition flex-shrink-0 flex items-center gap-1.5"
                   data-testid="settings-install-pwa-btn"
@@ -471,6 +523,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Download className="w-3.5 h-3.5" />
                   <span>Install</span>
                 </button>
+              </div>
+            ) : (
+              /* Automatic Prompt Unavailable - Clear Manual Instructions */
+              <div
+                className={`p-3.5 rounded-2xl border space-y-2 ${
+                  isDark
+                    ? 'bg-slate-800/40 border-slate-800'
+                    : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center flex-shrink-0">
+                      <Download className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">Install Vazhikatti</p>
+                      <p className="text-[11px] text-slate-400 truncate">Manual browser installation</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openInstallModal();
+                    }}
+                    className="px-2.5 py-1 rounded-xl text-xs font-bold text-indigo-400 hover:text-white hover:bg-indigo-600/20 border border-indigo-500/30 transition flex-shrink-0"
+                  >
+                    Instructions
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed px-1">
+                  Open your browser menu (<strong>&vellip;</strong>) and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.
+                </p>
               </div>
             )}
           </div>

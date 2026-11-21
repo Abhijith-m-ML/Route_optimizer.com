@@ -16,10 +16,33 @@ let isAppInstalled = false;
 
 // Initialize global event listeners immediately
 if (typeof window !== 'undefined') {
+  // Check if early inline script already caught the beforeinstallprompt event
+  if ((window as any).__vazhikattiDeferredPrompt) {
+    deferredPrompt = (window as any).__vazhikattiDeferredPrompt;
+  }
+  if ((window as any).__vazhikattiInstalled) {
+    isAppInstalled = true;
+  }
+
+  // Listen for custom events dispatched by the early index.html capture script
+  window.addEventListener('vazhikatti:installpromptready', () => {
+    deferredPrompt = (window as any).__vazhikattiDeferredPrompt;
+    promptListeners.forEach((listener) => listener());
+    console.log('[Vazhikatti PWA] Deferred prompt synced from early capture');
+  });
+
+  window.addEventListener('vazhikatti:appinstalled', () => {
+    isAppInstalled = true;
+    deferredPrompt = null;
+    promptListeners.forEach((listener) => listener());
+    console.log('[Vazhikatti PWA] App installed event synced from early capture');
+  });
+
   window.addEventListener('beforeinstallprompt', (e: Event) => {
     // Prevent default mini-infobar from appearing automatically on mobile
     e.preventDefault();
     deferredPrompt = e;
+    (window as any).__vazhikattiDeferredPrompt = e;
     promptListeners.forEach((listener) => listener());
     console.log('[Vazhikatti PWA] beforeinstallprompt event captured and deferred');
   });
@@ -27,6 +50,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('appinstalled', () => {
     isAppInstalled = true;
     deferredPrompt = null;
+    (window as any).__vazhikattiDeferredPrompt = null;
     promptListeners.forEach((listener) => listener());
     console.log('[Vazhikatti PWA] Application was successfully installed');
   });
@@ -126,7 +150,7 @@ export function registerServiceWorker(onUpdateFound?: () => void): void {
     return;
   }
 
-  window.addEventListener('load', () => {
+  const runRegistration = () => {
     const swUrl = '/sw.js';
 
     navigator.serviceWorker
@@ -160,7 +184,13 @@ export function registerServiceWorker(onUpdateFound?: () => void): void {
       .catch((error) => {
         console.warn('[Vazhikatti PWA] Service Worker registration failed:', error);
       });
-  });
+  };
+
+  if (document.readyState === 'complete') {
+    runRegistration();
+  } else {
+    window.addEventListener('load', runRegistration);
+  }
 
   // Reload window when new service worker takes over
   let refreshing = false;
