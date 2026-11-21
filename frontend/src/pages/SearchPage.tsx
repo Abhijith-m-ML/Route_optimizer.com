@@ -555,6 +555,9 @@ export const SearchPage: React.FC = () => {
         onSuccessToast={(msg) => {
           showToast({ type: 'success', title: msg });
         }}
+        onWarningToast={(msg) => {
+          showToast({ type: 'warning', title: msg });
+        }}
       />
 
       {/* Navigation Modals */}

@@ -1,4 +1,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import * as maplibregl from 'maplibre-gl';
+import { setWorkerUrl } from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
+// Configure official MapLibre Web Worker bundled via Vite to prevent worker loading failures
+try {
+  setWorkerUrl(workerUrl);
+} catch (workerErr) {
+  console.warn('[MapLibre] Worker URL configuration warning:', workerErr);
+}
 import { 
   Plus, 
   Minus, 
@@ -17,13 +28,12 @@ import {
   Flag
 } from 'lucide-react';
 import { 
-  loadGoogleMaps, 
-  isGoogleMapsConfigured, 
-  onGoogleMapsAuthFailure 
-} from '../../services/googleMapsLoader';
-import { ROUTEWISE_DARK_MAP_STYLE } from '../../utils/mapStyles';
+  getGeoapifyMapStyleUrl, 
+  isGeoapifyConfigured, 
+  geoapifyCalculateRoute 
+} from '../../services/geoapifyService';
 import { useTheme } from '../../context/ThemeContext';
-import type { SelectedStop } from '../../types';
+import type { SelectedStop, TravelMode } from '../../types';
 import googleMapsPinIcon from '../../assets/google-maps-pin.png';
 
 // Official Mumbai geographic coordinates
@@ -39,21 +49,22 @@ type MapLoadingStatus = 'loading' | 'ready' | 'missing_key' | 'error';
 export interface InteractiveMapProps {
   stops?: SelectedStop[];
   activeStopId?: string | null;
+  travelMode?: TravelMode;
   onSelectStop?: (id: string) => void;
   onRemoveStop?: (id: string) => void;
   onSetAsStart?: (id: string) => void;
 }
 
 /**
- * Creates a high-DPI numbered teardrop SVG marker icon
+ * Creates high-DPI numbered teardrop SVG marker markup
  */
-function createNumberedMarkerIcon(
+function getNumberedMarkerSvg(
   number: number,
   isSelected: boolean,
   isFirst: boolean,
   isLast: boolean,
   totalStops: number
-): google.maps.Icon {
+): string {
   const bgColor = isSelected
     ? '#4f46e5' // Bright Indigo
     : isFirst
@@ -67,10 +78,10 @@ function createNumberedMarkerIcon(
   const scale = isSelected ? 42 : 36;
   const height = scale + 10;
 
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${scale}" height="${height}" viewBox="0 0 38 48">
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${scale}" height="${height}" viewBox="0 0 38 48" style="display:block; filter: drop-shadow(0 3px 5px rgba(0,0,0,0.45));">
       <defs>
-        <filter id="marker-shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id="marker-shadow-${number}" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.6"/>
         </filter>
       </defs>
@@ -78,7 +89,7 @@ function createNumberedMarkerIcon(
             fill="${bgColor}" 
             stroke="${strokeColor}" 
             stroke-width="${strokeWidth}" 
-            filter="url(#marker-shadow)"/>
+            filter="url(#marker-shadow-${number})"/>
       <circle cx="19" cy="17" r="10.5" fill="#ffffff" opacity="0.96"/>
       <text x="19" y="21.5" 
             font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
@@ -88,11 +99,26 @@ function createNumberedMarkerIcon(
             text-anchor="middle">${number}</text>
     </svg>
   `;
+}
+
+/**
+ * Backwards-compatibility wrapper for test suites verifying marker icon creation
+ */
+export function createNumberedMarkerIcon(
+  number: number,
+  isSelected: boolean,
+  isFirst: boolean,
+  isLast: boolean,
+  totalStops: number
+): { url: string; scaledSize?: { width: number; height: number }; anchor?: { x: number; y: number } } {
+  const svg = getNumberedMarkerSvg(number, isSelected, isFirst, isLast, totalStops);
+  const scale = isSelected ? 42 : 36;
+  const height = scale + 10;
 
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new window.google.maps.Size(scale, height),
-    anchor: new window.google.maps.Point(scale / 2, height),
+    scaledSize: { width: scale, height },
+    anchor: { x: scale / 2, y: height },
   };
 }
 
@@ -119,14 +145,15 @@ const getInitialMapTheme = (): MapThemeType => {
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   stops = [],
   activeStopId = null,
+  travelMode = 'DRIVING',
   onSelectStop,
   onRemoveStop,
   onSetAsStart,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersMapRef = useRef<Map<string, google.maps.Marker>>(new Map());
-  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const markersMapRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const popupRef = useRef<maplibregl.Popup | null>(null);
   const prevStopsCountRef = useRef<number>(0);
 
   const { isDark } = useTheme();
@@ -137,6 +164,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
   const [mobileSelectedStop, setMobileSelectedStop] = useState<{ stop: SelectedStop; index: number } | null>(null);
   const userClickedStopIdRef = useRef<string | null>(null);
+  const currentRouteGeoJsonRef = useRef<any>(null);
+  const failsafeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Synchronize mobileSelectedStop with activeStopId only upon explicit user interaction
   useEffect(() => {
@@ -152,160 +181,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
   }, [activeStopId, stops]);
 
-  // Initialize and render real Google Map
-  const initMap = useCallback(async () => {
-    if (!isGoogleMapsConfigured()) {
-      setStatus('missing_key');
-      return;
-    }
-
-    setStatus('loading');
-    setErrorMessage('');
-
-    try {
-      const mapsLib = await loadGoogleMaps();
-
-      if (!mapContainerRef.current) return;
-
-      // Clean up previous listeners if re-initializing
-      if (mapInstanceRef.current && window.google?.maps) {
-        window.google.maps.event.clearInstanceListeners(mapInstanceRef.current);
-        mapInstanceRef.current = null;
-      }
-
-      // Create new real Google Map instance using official library
-      const themeToApply = currentThemeRef.current;
-      const map = new mapsLib.Map(mapContainerRef.current, {
-        center: MUMBAI_CENTER,
-        zoom: DEFAULT_ZOOM,
-        minZoom: 1, // Enable full/infinite zoom out (global & national view)
-        maxZoom: 21,
-        mapTypeId: themeToApply === 'satellite' ? 'hybrid' : 'roadmap',
-        styles: themeToApply === 'dark' ? ROUTEWISE_DARK_MAP_STYLE : undefined,
-        disableDefaultUI: false,
-        zoomControl: false, // Powered by custom toolbar
-        mapTypeControl: false, // Powered by custom toolbar
-        streetViewControl: true,
-        fullscreenControl: false,
-        gestureHandling: 'greedy',
-        clickableIcons: false, // Prevents Google's unsolicited default POI popups from cluttering mobile map
-      });
-
-      mapInstanceRef.current = map;
-
-      // Close popups on general map click
-      map.addListener('click', () => {
-        infoWindowRef.current?.close();
-        setMobileSelectedStop(null);
-        userClickedStopIdRef.current = null;
-      });
-
-      // Initialize single reusable InfoWindow
-      infoWindowRef.current = new window.google.maps.InfoWindow({
-        disableAutoPan: false,
-      });
-
-      setStatus('ready');
-    } catch (err: unknown) {
-      console.error('[RouteWise Map] Failed to load Google Maps:', err);
-      const errorObj = err as { message?: string };
-      if (errorObj?.message === 'MISSING_API_KEY') {
-        setStatus('missing_key');
-      } else {
-        setStatus('error');
-        setErrorMessage(
-          'Google Maps could not be initialized. Please check your network connection and ensure your Google Maps API key has the Maps JavaScript API enabled.'
-        );
-      }
-    }
-  }, [currentTheme]);
-
-  // Initial load effect
-  useEffect(() => {
-    initMap();
-
-    // Intercept Google Maps runtime console errors (such as ApiNotActivatedMapError)
-    const originalConsoleError = console.error;
-    console.error = (...args: unknown[]) => {
-      const text = args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
-      if (text.includes('RefererNotAllowedMapError')) {
-        setStatus('error');
-        setErrorMessage(
-          'Domain not authorized (RefererNotAllowedMapError): In Google Cloud Console → APIs & Services → Credentials, edit your API key and under Website Restrictions add "https://vazhikatti-route.vercel.app/*" or choose "None" (no restriction).'
-        );
-      } else if (text.includes('BillingNotEnabledMapError')) {
-        setStatus('error');
-        setErrorMessage(
-          'Billing is not enabled on your Google Cloud project (BillingNotEnabledMapError). Google requires a billing account to be linked (Google provides $200 free credit monthly). Please link a billing account in Google Cloud Console.'
-        );
-      } else if (text.includes('ApiNotActivatedMapError')) {
-        setStatus('error');
-        setErrorMessage(
-          'Maps JavaScript API is not activated on your Google Cloud project (ApiNotActivatedMapError). Please enable "Maps JavaScript API" in Google Cloud Console.'
-        );
-      } else if (text.includes('InvalidKeyMapError') || text.includes('DeletedKeyMapError')) {
-        setStatus('error');
-        setErrorMessage(
-          'Invalid or deleted API key. Please check your VITE_GOOGLE_MAPS_API_KEY setting in Vercel environment variables.'
-        );
-      }
-      originalConsoleError.apply(console, args);
-    };
-
-    // Listen for Google Maps runtime auth rejection
-    const unsubscribeAuthFailure = onGoogleMapsAuthFailure((_msg) => {
-      setStatus('error');
-      setErrorMessage((prev) => {
-        if (prev && !prev.startsWith('Google Maps authorization failed')) {
-          return prev;
-        }
-        return (
-          'Google Maps authorization failed. Since your APIs are enabled, this is usually caused by: ' +
-          '1) Website (HTTP Referrer) restrictions blocking your Vercel domain — add "https://vazhikatti-route.vercel.app/*" or select "None". ' +
-          '2) Billing account not linked to the Google Cloud Project (required by Google, $200 free credit included monthly). ' +
-          '3) Key API restrictions — ensure "Maps JavaScript API", "Places API", and "Directions API" are allowed, or select "Don\'t restrict key".'
-        );
-      });
-    });
-
-    // Handle responsive container resize
-    const handleResize = () => {
-      if (mapInstanceRef.current && window.google?.maps) {
-        window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    // Automatically detect container element dimensions change (tab switches, responsive devtools, rotations)
-    let resizeObserver: ResizeObserver | null = null;
-    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        handleResize();
-      });
-      resizeObserver.observe(mapContainerRef.current);
-    }
-
-    return () => {
-      console.error = originalConsoleError;
-      unsubscribeAuthFailure();
-      window.removeEventListener('resize', handleResize);
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-      // Clean up markers
-      markersMapRef.current.forEach((marker) => marker.setMap(null));
-      markersMapRef.current.clear();
-      if (mapInstanceRef.current && window.google?.maps) {
-        window.google.maps.event.clearInstanceListeners(mapInstanceRef.current);
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [initMap]);
-
-  // Opens the InfoWindow for a given stop on its marker
+  // Opens the Popup for a given stop on its marker
   const openInfoWindowForStop = useCallback(
-    (stop: SelectedStop, marker: google.maps.Marker, stopIndex: number) => {
-      if (!infoWindowRef.current || !mapInstanceRef.current) return;
+    (stop: SelectedStop, stopIndex: number) => {
+      if (!mapInstanceRef.current) return;
+      const map = mapInstanceRef.current;
+
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
 
       const badgeLabel =
         stopIndex === 0
@@ -320,14 +205,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       const content = document.createElement('div');
       content.style.fontFamily = "'Plus Jakarta Sans', system-ui, sans-serif";
-      content.style.padding = '8px 4px 6px 4px';
-      content.style.maxWidth = '240px';
+      content.style.padding = '4px 2px 2px 2px';
+      content.style.maxWidth = '250px';
       content.style.color = '#0f172a';
 
-      // Header row containing stop badge and category
+      // Header row containing stop badge
       const headerRow = document.createElement('div');
       headerRow.style.cssText =
-        'display:flex; align-items:center; gap:6px; margin-bottom:5px; padding-right:26px;';
+        'display:flex; align-items:center; gap:6px; margin-bottom:5px; padding-right:16px;';
 
       const badgesContainer = document.createElement('div');
       badgesContainer.style.cssText = 'display:flex; align-items:center; gap:6px; min-width:0;';
@@ -372,7 +257,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
           startBtn.style.backgroundColor = '#ecfdf5';
         };
         startBtn.onclick = () => {
-          infoWindowRef.current?.close();
+          popupRef.current?.remove();
+          popupRef.current = null;
           onSetAsStart(stop.id);
         };
         leftActions.appendChild(startBtn);
@@ -391,7 +277,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         removeBtn.style.backgroundColor = '#fee2e2';
       };
       removeBtn.onclick = () => {
-        infoWindowRef.current?.close();
+        popupRef.current?.remove();
+        popupRef.current = null;
         onRemoveStop?.(stop.id);
       };
       leftActions.appendChild(removeBtn);
@@ -450,28 +337,221 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       content.appendChild(footerRow);
 
-      infoWindowRef.current.setContent(content);
-      infoWindowRef.current.open({
-        anchor: marker,
-        map: mapInstanceRef.current,
-        shouldFocus: false,
-      });
+      const popup = new maplibregl.Popup({
+        offset: [0, -42],
+        closeButton: false,
+        closeOnClick: true,
+        className: 'vazhikatti-map-popup',
+        maxWidth: '280px',
+      })
+        .setDOMContent(content)
+        .setLngLat([stop.coordinates.lng, stop.coordinates.lat])
+        .addTo(map);
+
+      popupRef.current = popup;
     },
-    [stops.length, onRemoveStop]
+    [stops.length, onRemoveStop, onSetAsStart]
   );
+
+  // Helper function to safely apply or update GeoJSON route line source and layers on MapLibre
+  const applyRouteLineToMap = useCallback((geojson: any) => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map.isStyleLoaded()) return;
+
+    try {
+      const existingSource = map.getSource('route-line-source') as maplibregl.GeoJSONSource | undefined;
+      if (existingSource) {
+        existingSource.setData(geojson);
+      } else {
+        map.addSource('route-line-source', {
+          type: 'geojson',
+          data: geojson,
+        });
+
+        // Layer 1: Casing glow for contrast against all map themes
+        if (!map.getLayer('route-line-casing')) {
+          map.addLayer({
+            id: 'route-line-casing',
+            type: 'line',
+            source: 'route-line-source',
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': currentThemeRef.current === 'dark' ? '#0f172a' : '#ffffff',
+              'line-width': 7.5,
+              'line-opacity': 0.8,
+            },
+          });
+        }
+
+        // Layer 2: Main crisp route line in Indigo/Blue
+        if (!map.getLayer('route-line')) {
+          map.addLayer({
+            id: 'route-line',
+            type: 'line',
+            source: 'route-line-source',
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round',
+            },
+            paint: {
+              'line-color': '#4f46e5',
+              'line-width': 4.5,
+              'line-opacity': 0.95,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[InteractiveMap] Route layer application non-fatal error:', err);
+    }
+  }, []);
+
+  // Initialize MapLibre GL JS map using Geoapify OSM Bright / Dark styles
+  const initMap = useCallback(() => {
+    if (!isGeoapifyConfigured()) {
+      setStatus('missing_key');
+      return;
+    }
+
+    setStatus('loading');
+    setErrorMessage('');
+
+    try {
+      if (!mapContainerRef.current) return;
+
+      // Clean up previous instance if re-initializing
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+
+      const styleUrl = getGeoapifyMapStyleUrl(currentThemeRef.current);
+
+      const map = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: styleUrl,
+        center: [MUMBAI_CENTER.lng, MUMBAI_CENTER.lat],
+        zoom: DEFAULT_ZOOM,
+        minZoom: 1, // Enable full/infinite zoom out (global & national view)
+        maxZoom: 20,
+        attributionControl: false,
+      });
+
+      mapInstanceRef.current = map;
+
+      let isReady = false;
+      const markReady = () => {
+        if (isReady) return;
+        isReady = true;
+        setStatus('ready');
+        try {
+          map.resize();
+        } catch {}
+        if (currentRouteGeoJsonRef.current) {
+          applyRouteLineToMap(currentRouteGeoJsonRef.current);
+        }
+      };
+
+      map.on('load', markReady);
+      map.on('style.load', markReady);
+      map.on('render', () => {
+        if (map.isStyleLoaded()) {
+          markReady();
+        }
+      });
+
+      // Safety failsafe timer: ensures spinner overlay never gets stuck on slow fonts/glyphs
+      if (failsafeTimerRef.current) clearTimeout(failsafeTimerRef.current);
+      failsafeTimerRef.current = setTimeout(() => {
+        markReady();
+      }, 700);
+
+      // Force immediate initial resize measurement
+      setTimeout(() => {
+        try {
+          map.resize();
+        } catch {}
+      }, 50);
+
+      // Close popups on general map click
+      map.on('click', () => {
+        if (popupRef.current) {
+          popupRef.current.remove();
+          popupRef.current = null;
+        }
+        setMobileSelectedStop(null);
+        userClickedStopIdRef.current = null;
+      });
+
+      map.on('error', (e: any) => {
+        console.warn('[MapLibre Map Error]:', e);
+        // Do not stay stuck in loading if non-fatal tile error occurs
+        markReady();
+      });
+    } catch (err: unknown) {
+      console.error('[RouteWise Map] Failed to load MapLibre map:', err);
+      setStatus('error');
+      setErrorMessage(
+        'The interactive map could not be initialized. Please check your network connection and verify your Geoapify configuration.'
+      );
+    }
+  }, [applyRouteLineToMap]);
+
+  // Initial load effect
+  useEffect(() => {
+    initMap();
+
+    // Handle responsive container resize
+    const handleResize = () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.resize();
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (mapContainerRef.current && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        handleResize();
+      });
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (failsafeTimerRef.current) {
+        clearTimeout(failsafeTimerRef.current);
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+      markersMapRef.current.forEach((marker) => marker.remove());
+      markersMapRef.current.clear();
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [initMap]);
 
   // Synchronize Numbered Markers with `stops` state
   useEffect(() => {
-    if (!mapInstanceRef.current || status !== 'ready' || !window.google?.maps) return;
-
+    if (!mapInstanceRef.current || status !== 'ready') return;
     const map = mapInstanceRef.current;
     const currentStopIds = new Set(stops.map((s) => s.id));
 
     // 1. Remove markers that are no longer in `stops`
     markersMapRef.current.forEach((marker, id) => {
       if (!currentStopIds.has(id)) {
-        marker.setMap(null);
-        window.google.maps.event.clearInstanceListeners(marker);
+        marker.remove();
         markersMapRef.current.delete(id);
       }
     });
@@ -481,7 +561,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       const isSelected = stop.id === activeStopId;
       const isFirst = index === 0;
       const isLast = index === stops.length - 1;
-      const icon = createNumberedMarkerIcon(
+      const svgMarkup = getNumberedMarkerSvg(
         index + 1,
         isSelected,
         isFirst,
@@ -492,43 +572,55 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       let marker = markersMapRef.current.get(stop.id);
 
       if (!marker) {
-        marker = new window.google.maps.Marker({
-          position: stop.coordinates,
-          map,
-          title: `${index + 1}. ${stop.name}`,
-          icon,
-          zIndex: isSelected ? 9999 : index + 100,
-          animation: window.google.maps.Animation.DROP,
-        });
+        const el = document.createElement('div');
+        el.className = 'vazhikatti-marker-container';
+        el.setAttribute('data-stop-id', stop.id);
+        el.setAttribute('data-stop-index', String(index + 1));
+        el.innerHTML = svgMarkup;
 
-        const currentMarker = marker;
-        currentMarker.addListener('click', () => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
           userClickedStopIdRef.current = stop.id;
           onSelectStop?.(stop.id);
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-            infoWindowRef.current?.close();
+            if (popupRef.current) {
+              popupRef.current.remove();
+              popupRef.current = null;
+            }
             setMobileSelectedStop({ stop, index });
-            map.panTo(stop.coordinates);
+            map.panTo([stop.coordinates.lng, stop.coordinates.lat]);
           } else {
-            openInfoWindowForStop(stop, currentMarker, index);
+            openInfoWindowForStop(stop, index);
           }
         });
 
-        markersMapRef.current.set(stop.id, currentMarker);
+        marker = new maplibregl.Marker({
+          element: el,
+          anchor: 'bottom',
+        })
+          .setLngLat([stop.coordinates.lng, stop.coordinates.lat])
+          .addTo(map);
+
+        markersMapRef.current.set(stop.id, marker);
       } else {
-        marker.setPosition(stop.coordinates);
-        marker.setTitle(`${index + 1}. ${stop.name}`);
-        marker.setIcon(icon);
-        marker.setZIndex(isSelected ? 9999 : index + 100);
+        marker.setLngLat([stop.coordinates.lng, stop.coordinates.lat]);
+        const el = marker.getElement();
+        if (el) {
+          el.innerHTML = svgMarkup;
+          el.setAttribute('data-stop-index', String(index + 1));
+        }
       }
 
       // Only open popup if explicitly selected by user interaction, not on passive initial load
-      if (isSelected && marker && userClickedStopIdRef.current === stop.id) {
+      if (isSelected && userClickedStopIdRef.current === stop.id) {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-          infoWindowRef.current?.close();
+          if (popupRef.current) {
+            popupRef.current.remove();
+            popupRef.current = null;
+          }
           setMobileSelectedStop({ stop, index });
         } else {
-          openInfoWindowForStop(stop, marker, index);
+          openInfoWindowForStop(stop, index);
         }
       }
     });
@@ -540,42 +632,110 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     if (currentCount > prevCount && currentCount > 0) {
       // A new destination was just added: pan map toward it
       const latestStop = stops[stops.length - 1];
-      map.panTo(latestStop.coordinates);
+      map.panTo([latestStop.coordinates.lng, latestStop.coordinates.lat]);
       const currZoom = map.getZoom() || DEFAULT_ZOOM;
       if (currZoom < 13) {
         map.setZoom(13);
       }
     } else if (currentCount === 0 && prevCount > 0) {
       // Itinerary cleared: close InfoWindow and reset to Mumbai center
-      infoWindowRef.current?.close();
+      if (popupRef.current) {
+        popupRef.current.remove();
+        popupRef.current = null;
+      }
       setMobileSelectedStop(null);
       userClickedStopIdRef.current = null;
-      map.panTo(MUMBAI_CENTER);
+      map.panTo([MUMBAI_CENTER.lng, MUMBAI_CENTER.lat]);
       map.setZoom(DEFAULT_ZOOM);
     }
 
     prevStopsCountRef.current = currentCount;
   }, [stops, activeStopId, status, onSelectStop, openInfoWindowForStop]);
 
+  // Synchronize Geoapify Multi-Stop Route Polyline
+  useEffect(() => {
+    if (!mapInstanceRef.current || status !== 'ready') return;
+    let isCancelled = false;
+
+    const syncRoutePolyline = async () => {
+      if (stops.length < 2) {
+        const emptyGeoJson = { type: 'FeatureCollection', features: [] };
+        currentRouteGeoJsonRef.current = emptyGeoJson;
+        applyRouteLineToMap(emptyGeoJson);
+        return;
+      }
+
+      // Fallback straight lines between sequential waypoints while calculating
+      const straightLineGeoJson = {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: stops.map((s) => [s.coordinates.lng, s.coordinates.lat]),
+            },
+          },
+        ],
+      };
+
+      try {
+        const routeResult = await geoapifyCalculateRoute(stops, travelMode);
+        if (isCancelled) return;
+
+        if (routeResult && routeResult.geometry) {
+          const liveGeoJson = {
+            type: 'FeatureCollection',
+            features: [
+              {
+                type: 'Feature',
+                properties: {},
+                geometry: routeResult.geometry,
+              },
+            ],
+          };
+          currentRouteGeoJsonRef.current = liveGeoJson;
+          applyRouteLineToMap(liveGeoJson);
+        } else {
+          currentRouteGeoJsonRef.current = straightLineGeoJson;
+          applyRouteLineToMap(straightLineGeoJson);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          currentRouteGeoJsonRef.current = straightLineGeoJson;
+          applyRouteLineToMap(straightLineGeoJson);
+        }
+      }
+    };
+
+    syncRoutePolyline();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [stops, travelMode, status, applyRouteLineToMap]);
+
   // Toolbar Actions
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
-      const currentZoom = mapInstanceRef.current.getZoom() || DEFAULT_ZOOM;
-      mapInstanceRef.current.setZoom(currentZoom + 1);
+      mapInstanceRef.current.zoomIn();
     }
   };
 
   const handleZoomOut = () => {
     if (mapInstanceRef.current) {
-      const currentZoom = mapInstanceRef.current.getZoom() || DEFAULT_ZOOM;
-      mapInstanceRef.current.setZoom(currentZoom - 1);
+      mapInstanceRef.current.zoomOut();
     }
   };
 
   const handleRecenter = () => {
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.panTo(MUMBAI_CENTER);
-      mapInstanceRef.current.setZoom(DEFAULT_ZOOM);
+      mapInstanceRef.current.flyTo({
+        center: [MUMBAI_CENTER.lng, MUMBAI_CENTER.lat],
+        zoom: DEFAULT_ZOOM,
+        duration: 800,
+      });
     }
   };
 
@@ -583,7 +743,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
    * Adjusts the map bounds to include every selected destination
    */
   const handleFitAllDestinations = () => {
-    if (!mapInstanceRef.current || !window.google?.maps) return;
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
 
     if (stops.length === 0) {
       handleRecenter();
@@ -591,38 +752,24 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     if (stops.length === 1) {
-      mapInstanceRef.current.panTo(stops[0].coordinates);
-      mapInstanceRef.current.setZoom(14);
+      map.flyTo({
+        center: [stops[0].coordinates.lng, stops[0].coordinates.lat],
+        zoom: 14,
+        duration: 800,
+      });
       return;
     }
 
-    const bounds = new window.google.maps.LatLngBounds();
+    const bounds = new maplibregl.LngLatBounds();
     stops.forEach((stop) => {
-      bounds.extend(stop.coordinates);
+      bounds.extend([stop.coordinates.lng, stop.coordinates.lat]);
     });
 
-    mapInstanceRef.current.fitBounds(bounds, {
-      top: 75,
-      right: 75,
-      bottom: 75,
-      left: 75,
+    map.fitBounds(bounds, {
+      padding: { top: 75, right: 75, bottom: 75, left: 75 },
+      maxZoom: 15,
+      duration: 800,
     });
-
-    // Prevent excessive zoom-in if all markers are close together
-    const listener = window.google.maps.event.addListenerOnce(
-      mapInstanceRef.current,
-      'idle',
-      () => {
-        if (mapInstanceRef.current && (mapInstanceRef.current.getZoom() || 0) > 16) {
-          mapInstanceRef.current.setZoom(15);
-        }
-      }
-    );
-    setTimeout(() => {
-      if (listener && window.google?.maps) {
-        window.google.maps.event.removeListener(listener);
-      }
-    }, 1000);
   };
 
   const handleThemeChange = (theme: MapThemeType) => {
@@ -637,17 +784,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     if (!mapInstanceRef.current) return;
-
-    if (theme === 'satellite') {
-      mapInstanceRef.current.setMapTypeId('hybrid');
-      mapInstanceRef.current.setOptions({ styles: [] });
-    } else if (theme === 'roadmap') {
-      mapInstanceRef.current.setMapTypeId('roadmap');
-      mapInstanceRef.current.setOptions({ styles: [] });
-    } else {
-      mapInstanceRef.current.setMapTypeId('roadmap');
-      mapInstanceRef.current.setOptions({ styles: ROUTEWISE_DARK_MAP_STYLE });
-    }
+    const styleUrl = getGeoapifyMapStyleUrl(theme);
+    mapInstanceRef.current.setStyle(styleUrl);
   };
 
   // Synchronize map theme when application global theme changes
@@ -662,7 +800,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
   return (
     <div className="relative w-full h-full min-h-0 flex-1 bg-slate-950 overflow-hidden select-none">
-      {/* Real Google Maps Mounting DOM Container */}
+      {/* Real MapLibre + Geoapify Mounting DOM Container */}
       <div 
         ref={mapContainerRef} 
         id="google-map"
@@ -679,7 +817,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </div>
           </div>
           <h3 className="font-bold text-base text-white tracking-wide">Loading Mumbai Interactive Map</h3>
-          <p className="text-xs text-slate-400 mt-1">Connecting to Google Maps JavaScript API...</p>
+          <p className="text-xs text-slate-400 mt-1">Connecting to Geoapify OSM Bright Map Tiles...</p>
         </div>
       )}
 
@@ -692,17 +830,17 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-white">Google Maps API Key Required</h3>
-                <p className="text-xs text-slate-400">Stage 4: Destination Search & Numbered Markers</p>
+                <h3 className="font-bold text-base text-white">Geoapify API Key Required</h3>
+                <p className="text-xs text-slate-400">MapLibre GL JS & Geoapify Integration</p>
               </div>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed mb-4">
-              To display the interactive Google Map and search places in Mumbai, configure your Google Cloud API key in your environment file:
+              To display the interactive map and search places, configure your Geoapify API key in your environment file:
             </p>
 
             <div className="bg-slate-950 rounded-xl p-3 border border-slate-800 font-mono text-xs text-cyan-300 mb-5 overflow-x-auto select-all">
-              VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
+              VITE_GEOAPIFY_API_KEY=37474d11d3de48b0a71f97304ab9cff1
             </div>
 
             <div className="flex items-center gap-3">
@@ -714,12 +852,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <span>Retry Connection</span>
               </button>
               <a
-                href="https://console.cloud.google.com/google/maps-apis/overview"
+                href="https://myprojects.geoapify.com"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 py-2.5 px-4 rounded-xl border border-slate-700 transition"
               >
-                <span>Console</span>
+                <span>Geoapify Console</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
@@ -736,41 +874,31 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-white">Google Maps Error</h3>
-                <p className="text-xs text-rose-400">Authentication or Network Error</p>
+                <h3 className="font-bold text-base text-white">Map Display Error</h3>
+                <p className="text-xs text-rose-400">Connection or Rendering Issue</p>
               </div>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed mb-5">
-              {errorMessage || 'Google Maps failed to load. Please verify your API key restrictions and billing settings in Google Cloud Console.'}
+              {errorMessage || 'The map could not be loaded. Please verify your internet connection and Geoapify API key.'}
             </p>
 
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={initMap}
-                  className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs py-2.5 px-3 rounded-xl border border-slate-700 transition"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Retry Map</span>
-                </button>
-                <a
-                  href="https://console.cloud.google.com/apis/credentials"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-lg transition"
-                >
-                  <span>API Key & Restrictions</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={initMap}
+                className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs py-2.5 px-3 rounded-xl border border-slate-700 transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Map</span>
+              </button>
               <a
-                href="https://console.cloud.google.com/billing"
+                href="https://myprojects.geoapify.com"
                 target="_blank"
                 rel="noreferrer"
-                className="w-full text-center text-[11px] text-slate-400 hover:text-white transition py-1"
+                className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs py-2.5 px-3 rounded-xl shadow-lg transition"
               >
-                Check Billing Account Status in Google Cloud →
+                <span>Geoapify Portal</span>
+                <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
           </div>

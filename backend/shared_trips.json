@@ -5655,5 +5655,227 @@
     "ownerName": "Traveler",
     "totalDestinations": 7,
     "createdAt": "2026-11-20T07:55:39.224Z"
+  },
+  "O7SHeU": {
+    "shareId": "O7SHeU",
+    "title": "All My Trips",
+    "selectedState": "All States",
+    "tripName": "All Trips",
+    "isAllTrips": true,
+    "trips": [
+      {
+        "id": "trip_1795169223166_zz58z",
+        "name": "adsfc",
+        "description": "",
+        "stops": [
+          {
+            "id": "place_ChIJuyNO7dki9DkRYCyZ4Ad69aw",
+            "placeId": "ChIJuyNO7dki9DkRYCyZ4Ad69aw",
+            "name": "Marafari",
+            "originalName": "Marafari",
+            "isCurrentLocation": false,
+            "isCustomName": false,
+            "address": "Marafari, Bokaro Steel City, Jharkhand, India",
+            "shortAddress": "Marafari, Bokaro Steel City",
+            "city": "Bokaro Steel City",
+            "state": "Jharkhand",
+            "stateCode": "JH",
+            "country": "India",
+            "coordinates": {
+              "lat": 23.664555099999998,
+              "lng": 86.105357
+            },
+            "category": "modern",
+            "rating": 4.6,
+            "reviewsCount": 500,
+            "typicalVisitDurationMinutes": 60,
+            "customDurationMinutes": 60,
+            "stopOrder": 1,
+            "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+            "tags": [
+              "sublocality_level_1",
+              "sublocality",
+              "political"
+            ]
+          },
+          {
+            "id": "place_ChIJ-_6-gtdyCDsRS_yF6V0ydUE",
+            "placeId": "ChIJ-_6-gtdyCDsRS_yF6V0ydUE",
+            "name": "Vyttila",
+            "originalName": "Vyttila",
+            "isCurrentLocation": false,
+            "isCustomName": false,
+            "address": "Vyttila, Kochi, Keralam, India",
+            "shortAddress": "Vyttila, Kochi",
+            "city": "Kochi",
+            "state": "Kerala",
+            "stateCode": "KL",
+            "country": "India",
+            "coordinates": {
+              "lat": 9.9683438,
+              "lng": 76.3180457
+            },
+            "category": "modern",
+            "rating": 4.6,
+            "reviewsCount": 500,
+            "typicalVisitDurationMinutes": 60,
+            "customDurationMinutes": 60,
+            "stopOrder": 2,
+            "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+            "tags": [
+              "sublocality_level_1",
+              "sublocality",
+              "political"
+            ]
+          }
+        ],
+        "travelMode": "DRIVING",
+        "totalDestinations": 2
+      }
+    ],
+    "stops": [
+      {
+        "id": "place_ChIJuyNO7dki9DkRYCyZ4Ad69aw",
+        "placeId": "ChIJuyNO7dki9DkRYCyZ4Ad69aw",
+        "name": "Marafari",
+        "originalName": "Marafari",
+        "isCurrentLocation": false,
+        "isCustomName": false,
+        "address": "Marafari, Bokaro Steel City, Jharkhand, India",
+        "shortAddress": "Marafari, Bokaro Steel City",
+        "city": "Bokaro Steel City",
+        "state": "Jharkhand",
+        "stateCode": "JH",
+        "country": "India",
+        "coordinates": {
+          "lat": 23.664555099999998,
+          "lng": 86.105357
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "sublocality_level_1",
+          "sublocality",
+          "political"
+        ]
+      },
+      {
+        "id": "place_ChIJ-_6-gtdyCDsRS_yF6V0ydUE",
+        "placeId": "ChIJ-_6-gtdyCDsRS_yF6V0ydUE",
+        "name": "Vyttila",
+        "originalName": "Vyttila",
+        "isCurrentLocation": false,
+        "isCustomName": false,
+        "address": "Vyttila, Kochi, Keralam, India",
+        "shortAddress": "Vyttila, Kochi",
+        "city": "Kochi",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 9.9683438,
+          "lng": 76.3180457
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "sublocality_level_1",
+          "sublocality",
+          "political"
+        ]
+      }
+    ],
+    "travelMode": "DRIVING",
+    "ownerName": "Abhijith M",
+    "userId": "usr_g_111678398476566058388",
+    "totalDestinations": 2,
+    "isActive": true,
+    "createdAt": "2026-11-20T16:07:30.740Z"
+  },
+  "4JNxqU": {
+    "shareId": "4JNxqU",
+    "title": "Shared Trip: adsfc",
+    "selectedState": "All States",
+    "tripId": "trip_1795169223166_zz58z",
+    "tripName": "adsfc",
+    "isAllTrips": false,
+    "stops": [
+      {
+        "id": "place_ChIJuyNO7dki9DkRYCyZ4Ad69aw",
+        "placeId": "ChIJuyNO7dki9DkRYCyZ4Ad69aw",
+        "name": "Marafari",
+        "originalName": "Marafari",
+        "isCurrentLocation": false,
+        "isCustomName": false,
+        "address": "Marafari, Bokaro Steel City, Jharkhand, India",
+        "shortAddress": "Marafari, Bokaro Steel City",
+        "city": "Bokaro Steel City",
+        "state": "Jharkhand",
+        "stateCode": "JH",
+        "country": "India",
+        "coordinates": {
+          "lat": 23.664555099999998,
+          "lng": 86.105357
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 1,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "sublocality_level_1",
+          "sublocality",
+          "political"
+        ]
+      },
+      {
+        "id": "place_ChIJ-_6-gtdyCDsRS_yF6V0ydUE",
+        "placeId": "ChIJ-_6-gtdyCDsRS_yF6V0ydUE",
+        "name": "Vyttila",
+        "originalName": "Vyttila",
+        "isCurrentLocation": false,
+        "isCustomName": false,
+        "address": "Vyttila, Kochi, Keralam, India",
+        "shortAddress": "Vyttila, Kochi",
+        "city": "Kochi",
+        "state": "Kerala",
+        "stateCode": "KL",
+        "country": "India",
+        "coordinates": {
+          "lat": 9.9683438,
+          "lng": 76.3180457
+        },
+        "category": "modern",
+        "rating": 4.6,
+        "reviewsCount": 500,
+        "typicalVisitDurationMinutes": 60,
+        "customDurationMinutes": 60,
+        "stopOrder": 2,
+        "photoUrl": "https://images.unsplash.com/photo-1566552881560-0be862a7c445?w=800&auto=format&fit=crop&q=80",
+        "tags": [
+          "sublocality_level_1",
+          "sublocality",
+          "political"
+        ]
+      }
+    ],
+    "travelMode": "DRIVING",
+    "ownerName": "Abhijith M",
+    "userId": "usr_g_111678398476566058388",
+    "totalDestinations": 2,
+    "isActive": true,
+    "createdAt": "2026-11-20T16:07:35.030Z"
   }
 }

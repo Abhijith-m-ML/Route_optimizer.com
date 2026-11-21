@@ -6,7 +6,9 @@ console.log('===========================================================');
 console.log('🧪 Starting Toast Notification Auto-Close Tests');
 console.log('===========================================================');
 
-const toastPath = path.resolve('src/components/Toast.tsx');
+const toastPath = fs.existsSync('frontend/src/components/Toast.tsx')
+  ? 'frontend/src/components/Toast.tsx'
+  : path.resolve('src/components/Toast.tsx');
 const toastContent = fs.readFileSync(toastPath, 'utf8');
 
 // Test 1: Timer logic

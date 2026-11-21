@@ -124,5 +124,8 @@ export interface SharedTripData {
   stops: SelectedStop[];
   travelMode: TravelMode;
   totalDestinations: number;
+  isActive?: boolean;
+  isRevoked?: boolean;
+  revokedAt?: string;
   createdAt?: string;
 }

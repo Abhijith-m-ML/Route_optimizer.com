@@ -7,7 +7,10 @@ console.log('🧪 Starting SearchBox & Current Location Logic Tests');
 console.log('===========================================================\n');
 
 // 1. Verify SearchBox source code checks
-const searchBoxCode = fs.readFileSync('src/components/Sidebar/SearchBox.tsx', 'utf8');
+const searchBoxPath = fs.existsSync('frontend/src/components/Sidebar/SearchBox.tsx')
+  ? 'frontend/src/components/Sidebar/SearchBox.tsx'
+  : 'src/components/Sidebar/SearchBox.tsx';
+const searchBoxCode = fs.readFileSync(searchBoxPath, 'utf8');
 
 console.log('Test 1: Quick chips removed from SearchBox');
 assert.strictEqual(searchBoxCode.includes('POPULAR_MUMBAI_LANDMARKS'), false, 'POPULAR_MUMBAI_LANDMARKS must be removed');
@@ -28,7 +31,10 @@ assert.ok(searchBoxCode.includes('navigator.geolocation'), 'Uses browser geoloca
 console.log('  ✅ Passed: "Add Current Location" suggestion item and geolocation workflow integrated.');
 
 console.log('\nTest 4: placesService removed hardcoded Mumbai 50km location bias');
-const placesServiceCode = fs.readFileSync('src/services/placesService.ts', 'utf8');
+const placesServicePath = fs.existsSync('frontend/src/services/placesService.ts')
+  ? 'frontend/src/services/placesService.ts'
+  : 'src/services/placesService.ts';
+const placesServiceCode = fs.readFileSync(placesServicePath, 'utf8');
 assert.strictEqual(placesServiceCode.includes('radius: 50000.0'), false, '50km circle bias must be removed');
 assert.strictEqual(placesServiceCode.includes('textQuery: `${query}, Mumbai`'), false, 'Hardcoded `, Mumbai` suffix must be removed');
 console.log('  ✅ Passed: placesService search is not restricted to Mumbai.');

@@ -6,7 +6,9 @@ console.log('===========================================================');
 console.log('🧪 Starting Shared-Trip Surprise Invitation Tests');
 console.log('===========================================================');
 
-const modalPath = path.resolve('src/components/SharedTripPreviewModal.tsx');
+const modalPath = fs.existsSync('frontend/src/components/SharedTripPreviewModal.tsx')
+  ? 'frontend/src/components/SharedTripPreviewModal.tsx'
+  : path.resolve('src/components/SharedTripPreviewModal.tsx');
 const modalContent = fs.readFileSync(modalPath, 'utf8');
 
 // Test 1: Required Exact Texts

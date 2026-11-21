@@ -6,19 +6,19 @@ console.log('===========================================================');
 console.log('🧪 Starting Clean Short Share URL System Tests');
 console.log('===========================================================');
 
-const serverPath = path.resolve('../backend/src/server.ts');
+const serverPath = fs.existsSync('backend/src/server.ts') ? 'backend/src/server.ts' : path.resolve('../backend/src/server.ts');
 const serverContent = fs.readFileSync(serverPath, 'utf8');
 
-const tripServicePath = path.resolve('src/services/tripService.ts');
+const tripServicePath = fs.existsSync('frontend/src/services/tripService.ts') ? 'frontend/src/services/tripService.ts' : path.resolve('src/services/tripService.ts');
 const tripServiceContent = fs.readFileSync(tripServicePath, 'utf8');
 
-const appPath = path.resolve('src/App.tsx');
+const appPath = fs.existsSync('frontend/src/App.tsx') ? 'frontend/src/App.tsx' : path.resolve('src/App.tsx');
 const appContent = fs.readFileSync(appPath, 'utf8');
 
-const sharedTripPagePath = path.resolve('src/pages/SharedTripPage.tsx');
+const sharedTripPagePath = fs.existsSync('frontend/src/pages/SharedTripPage.tsx') ? 'frontend/src/pages/SharedTripPage.tsx' : path.resolve('src/pages/SharedTripPage.tsx');
 const sharedTripPageContent = fs.readFileSync(sharedTripPagePath, 'utf8');
 
-const shareDialogPath = path.resolve('src/components/ShareDialog.tsx');
+const shareDialogPath = fs.existsSync('frontend/src/components/ShareDialog.tsx') ? 'frontend/src/components/ShareDialog.tsx' : path.resolve('src/components/ShareDialog.tsx');
 const shareDialogContent = fs.readFileSync(shareDialogPath, 'utf8');
 
 // Test 1: Short URL generation format in tripService

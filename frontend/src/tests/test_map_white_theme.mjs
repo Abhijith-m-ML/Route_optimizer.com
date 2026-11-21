@@ -6,7 +6,9 @@ console.log('===========================================================');
 console.log('🧪 Starting Default White Map Theme & Switcher Tests');
 console.log('===========================================================');
 
-const mapPath = path.resolve('src/components/Map/InteractiveMap.tsx');
+const mapPath = fs.existsSync('frontend/src/components/Map/InteractiveMap.tsx')
+  ? 'frontend/src/components/Map/InteractiveMap.tsx'
+  : path.resolve('src/components/Map/InteractiveMap.tsx');
 const mapContent = fs.readFileSync(mapPath, 'utf8');
 
 // Test 1: Default to roadmap (white / standard) on first open

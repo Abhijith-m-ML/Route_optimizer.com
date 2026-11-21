@@ -1,6 +1,7 @@
 import type { SelectedStop, TravelMode, SharedTripData, TripCollection } from '../types';
 import { db } from '../config/firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { deduplicateStops } from '../utils/placeMatching';
 
 export interface SavedTrip {
   id: string;
@@ -273,7 +274,7 @@ export async function saveTripToStorage(
     id: 'trip_' + (isAuth && userId ? `${userId.toLowerCase()}_` : '') + Date.now(),
     title: cleanTitle,
     travelMode: tripData.travelMode,
-    stops: tripData.stops,
+    stops: deduplicateStops(tripData.stops),
     lastSavedAt: tripData.lastSavedAt,
     updatedAt: new Date().toISOString(),
     userId: isAuth && userId ? userId : 'guest',
@@ -496,11 +497,14 @@ export async function createSharedTrip(params: {
     }
   }
 
-  const origin = window.location.origin;
+  const isProd = typeof window !== 'undefined' && 
+    !window.location.hostname.includes('localhost') && 
+    !window.location.hostname.includes('127.0.0.1');
+  const origin = isProd ? 'https://vazhikatti-route.vercel.app' : window.location.origin;
 
   let finalShareUrl: string;
   if (generatedShareId) {
-    // Clean short URL format: https://vazhikatti-route.vercel.app/s/Ab12Xy
+    // Clean short URL format: https://vazhikatti-route.vercel.app/s/a8K2pQ
     finalShareUrl = `${origin}/s/${generatedShareId}`;
   } else if (fallbackB64) {
     finalShareUrl = `${origin}/s/preview?trip=${fallbackB64}`;
@@ -526,6 +530,18 @@ export async function fetchSharedTrip(shareId: string): Promise<SharedTripData |
   for (const backendUrl of getBackendCandidateUrls()) {
     try {
       const res = await fetch(`${backendUrl}/api/trips/share/${encodeURIComponent(cleanId)}`);
+      if (res.status === 410) {
+        await res.json().catch(() => ({}));
+        return {
+          shareId: cleanId,
+          title: 'Link Revoked',
+          isRevoked: true,
+          isActive: false,
+          stops: [],
+          travelMode: 'DRIVING',
+          totalDestinations: 0,
+        };
+      }
       if (res.ok) {
         const json = await res.json();
         if (json.share) {
@@ -535,6 +551,34 @@ export async function fetchSharedTrip(shareId: string): Promise<SharedTripData |
     } catch {}
   }
   return null;
+}
+
+/**
+ * Revokes an existing shared trip link on the backend
+ */
+export async function revokeTripShare(
+  shareId: string,
+  token?: string | null,
+  userId?: string | null
+): Promise<boolean> {
+  const cleanId = (shareId || '').trim();
+  if (!cleanId) return false;
+
+  for (const backendUrl of getBackendCandidateUrls()) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${backendUrl}/api/trips/share/${encodeURIComponent(cleanId)}/revoke`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        return true;
+      }
+    } catch {}
+  }
+  return false;
 }
 
 // =========================================================================
@@ -552,12 +596,13 @@ export function loadLocalTrips(userId?: string | null): TripCollection[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        // Sanitize any legacy explorer names
+        // Sanitize any legacy explorer names and deduplicate stops
         return parsed.map((t: TripCollection) => {
+          const cleanStops = deduplicateStops(t.stops || []);
           if (t.name && (t.name.toLowerCase().includes('highlights explorer') || t.name.toLowerCase().includes('mumbai highlights'))) {
-            return { ...t, name: 'My Trip' };
+            return { ...t, name: 'My Trip', stops: cleanStops };
           }
-          return t;
+          return { ...t, stops: cleanStops };
         });
       }
     }
@@ -579,7 +624,7 @@ export function loadLocalTrips(userId?: string | null): TripCollection[] {
         name: cleanName,
         description: 'Active route',
         travelMode: legacy.travelMode || 'DRIVING',
-        stops: legacy.stops,
+        stops: deduplicateStops(legacy.stops),
         isOptimized: false,
         createdAt: legacy.lastSavedAt || new Date().toISOString(),
         updatedAt: legacy.updatedAt || new Date().toISOString(),
@@ -625,12 +670,13 @@ export async function fetchUserTrips(userId?: string | null, token?: string | nu
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json.trips)) {
-          // Cleanse any legacy titles in trips from server
+          // Cleanse any legacy titles in trips from server and deduplicate stops
           const cleanTrips: TripCollection[] = json.trips.map((t: TripCollection) => {
+            const cleanStops = deduplicateStops(t.stops || []);
             if (t.name && (t.name.toLowerCase().includes('highlights explorer') || t.name.toLowerCase().includes('mumbai highlights'))) {
-              return { ...t, name: 'My Trip' };
+              return { ...t, name: 'My Trip', stops: cleanStops };
             }
-            return t;
+            return { ...t, stops: cleanStops };
           });
 
           // If server returned trips (including empty [] for a brand new user), persist locally and return
@@ -674,13 +720,14 @@ export async function createUserTrip(
     throw new Error(`You already have a trip named "${trimmedName}". Please choose a different name.`);
   }
 
+  const cleanStops = deduplicateStops(data.stops || []);
   const newTrip: TripCollection = {
     id: 'trip_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
     userId: userId || 'default',
     name: trimmedName,
     description: data.description?.trim() || '',
     travelMode: data.travelMode || 'DRIVING',
-    stops: data.stops || [],
+    stops: cleanStops,
     isOptimized: Boolean(data.isOptimized),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -696,6 +743,7 @@ export async function createUserTrip(
         headers,
         body: JSON.stringify({
           ...data,
+          stops: cleanStops,
           userId: userId || undefined,
         }),
       });
@@ -751,6 +799,10 @@ export async function updateUserTrip(
       throw new Error(`You already have another trip named "${trimmed}". Please choose a different name.`);
     }
     updates.name = trimmed;
+  }
+
+  if (updates.stops) {
+    updates.stops = deduplicateStops(updates.stops);
   }
 
   // Try backend update
@@ -886,7 +938,10 @@ export async function createTripCollectionShare(params: {
     } catch {}
   }
 
-  const origin = window.location.origin;
+  const isProd = typeof window !== 'undefined' && 
+    !window.location.hostname.includes('localhost') && 
+    !window.location.hostname.includes('127.0.0.1');
+  const baseDomain = isProd ? 'https://vazhikatti-route.vercel.app' : window.location.origin;
 
   let fallbackB64 = '';
   if (stops && stops.length > 0) {
@@ -897,12 +952,12 @@ export async function createTripCollectionShare(params: {
 
   let finalShareUrl: string;
   if (generatedShareId) {
-    // Clean short URL format: https://vazhikatti-route.vercel.app/s/Ab12Xy
-    finalShareUrl = `${origin}/s/${generatedShareId}`;
+    // Clean short URL format: https://vazhikatti-route.vercel.app/s/a8K2pQ
+    finalShareUrl = `${baseDomain}/s/${generatedShareId}`;
   } else if (fallbackB64) {
-    finalShareUrl = `${origin}/s/preview?trip=${fallbackB64}`;
+    finalShareUrl = `${baseDomain}/s/preview?trip=${fallbackB64}`;
   } else {
-    finalShareUrl = `${origin}/dashboard`;
+    finalShareUrl = `${baseDomain}/dashboard`;
   }
 
   return {

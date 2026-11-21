@@ -8,6 +8,7 @@ import { Toast } from '../components/Toast';
 import type { ToastMessage } from '../components/Toast';
 import type { Destination, SelectedStop, TravelMode, SharedTripData, TripCollection } from '../types';
 import { calculateRouteMetrics, optimizeRouteStops } from '../utils/routeOptimizer';
+import { findDuplicateStop, deduplicateStops } from '../utils/placeMatching';
 import { reverseGeocodeCoords } from '../services/placesService';
 import { 
   decodeTripFromUrl,
@@ -225,20 +226,26 @@ export const DashboardPage: React.FC = () => {
 
   // Check URL for shared trip parameters or pending shared trip from /s/:shareId
   useEffect(() => {
-    // 1. Check for pending shared trip from /s/:shareId
-    const pendingJson = localStorage.getItem('vazhikatti_pending_shared_trip');
+    // 1. One-time import for shared trip from /s/:shareId
+    const pendingJson = sessionStorage.getItem('vazhikatti_pending_shared_trip') || localStorage.getItem('vazhikatti_pending_shared_trip');
     if (pendingJson) {
       try {
         const pending = JSON.parse(pendingJson);
+        sessionStorage.removeItem('vazhikatti_pending_shared_trip');
         localStorage.removeItem('vazhikatti_pending_shared_trip');
+        localStorage.removeItem('vazhikatti_active_shared_trip');
         if (pending && Array.isArray(pending.stops) && pending.stops.length > 0) {
+          sessionStorage.setItem('vazhikatti_guest_viewing_shared_trip', 'true');
           handleImportSharedDestinations(pending.stops, pending.tripName || pending.title || 'Shared Trip');
           return;
         }
       } catch {}
     }
 
-    // 2. Legacy URL search parameter check
+    // Purge any stale active shared trip modal state so it never reappears on normal dashboard visits
+    localStorage.removeItem('vazhikatti_active_shared_trip');
+
+    // 2. Legacy URL search parameter check (explicit ?share= or ?trip= in URL)
     const hash = window.location.hash || '';
     const queryPart = hash.includes('?') ? hash.split('?')[1] : window.location.search.replace(/^\?/, '');
     const searchParams = new URLSearchParams(queryPart);
@@ -436,20 +443,12 @@ export const DashboardPage: React.FC = () => {
       }
     }
 
-    const isDuplicate = targetStops.some(
-      (s) =>
-        (destination.placeId && s.placeId === destination.placeId) ||
-        s.id === destination.id ||
-        (s.name.toLowerCase() === destination.name.toLowerCase() &&
-          s.coordinates.lat === destination.coordinates.lat &&
-          s.coordinates.lng === destination.coordinates.lng)
-    );
-
-    if (isDuplicate) {
+    const duplicateStop = findDuplicateStop(targetStops, destination);
+    if (duplicateStop) {
       showToast({
         type: 'warning',
-        title: 'Already in Itinerary',
-        description: `${destination.name} is already added to "${targetTrip.name}".`,
+        title: 'This place is already in this file.',
+        description: `"${destination.name}" is already in "${targetTrip.name}".`,
       });
       return;
     }
@@ -460,7 +459,7 @@ export const DashboardPage: React.FC = () => {
       customDurationMinutes: destination.typicalVisitDurationMinutes,
     };
 
-    const nextStops = [...targetStops, newStop];
+    const nextStops = deduplicateStops([...targetStops, newStop]);
     const updated = calculateRouteMetrics(nextStops, targetTrip.travelMode || 'DRIVING');
 
     const updatedTrip: TripCollection = {
@@ -1203,6 +1202,7 @@ export const DashboardPage: React.FC = () => {
           <InteractiveMap
             stops={currentStops}
             activeStopId={activeStopId}
+            travelMode={travelMode}
             onSelectStop={(id) => setActiveStopId(id)}
             onRemoveStop={handleRemoveStop}
             onSetAsStart={handleSetAsStartById}

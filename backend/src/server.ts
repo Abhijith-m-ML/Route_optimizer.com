@@ -17,6 +17,7 @@ import {
   deleteTripCollectionFromDb,
   loadSharedTripsFromDb,
   saveSharedTripToDb,
+  revokeSharedTripInDb,
   loadLegacyTripsFromDb,
   saveLegacyTripToDb,
   deleteLegacyTripFromDb,
@@ -173,6 +174,8 @@ export interface SharedTripRecord {
   ownerName?: string;
   userId?: string;
   totalDestinations: number;
+  isActive?: boolean;
+  revokedAt?: string;
   createdAt: string;
 }
 
@@ -1353,21 +1356,142 @@ app.get('/api/dashboard/summary', requireAuth, (req: AuthenticatedRequest, res: 
   });
 });
 
-// Mock / Future Google Places Proxy Endpoint
-app.get('/api/places/search', (req: Request, res: Response) => {
-  const query = req.query.q as string;
+// Geoapify Map Style Proxy Endpoint
+app.get('/api/map/style', async (req: Request, res: Response) => {
+  const theme = (req.query.theme || req.query.style || 'osm-bright') as string;
+  const styleName = theme === 'dark' ? 'dark-matter' : 'osm-bright';
+
+  try {
+    const url = `https://maps.geoapify.com/v1/styles/${styleName}/style.json?apiKey=${GEOAPIFY_KEY}`;
+    const apiRes = await fetch(url);
+    if (!apiRes.ok) {
+      return res.status(apiRes.status).json({ error: 'Failed to fetch map style from Geoapify' });
+    }
+    const styleData = await apiRes.json();
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.json(styleData);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Style proxy error', details: err?.message });
+  }
+});
+
+// Map Configuration Endpoint (allows frontend to retrieve backend-connected map endpoints)
+app.get('/api/config/maps', (_req: Request, res: Response) => {
   res.json({
-    message: 'Places API proxy ready for Google Places integration',
-    query: query || '',
-    results: [],
+    provider: 'geoapify',
+    isConfigured: Boolean(GEOAPIFY_KEY && GEOAPIFY_KEY.length > 10),
+    hasBackendProxy: true,
+    styleUrl: `/api/map/style?theme=osm-bright`,
+    darkStyleUrl: `/api/map/style?theme=dark`,
+    endpoints: {
+      autocomplete: '/api/places/autocomplete',
+      reverse: '/api/places/reverse',
+      routes: '/api/routes',
+    },
   });
 });
 
-// Mock / Future Google Routes Optimization Endpoint
+// Geoapify Places & Geocoding Proxy Endpoints
+const GEOAPIFY_KEY = (process.env.GEOAPIFY_API_KEY || '37474d11d3de48b0a71f97304ab9cff1').trim();
+
+app.get('/api/places/autocomplete', async (req: Request, res: Response) => {
+  const text = (req.query.text || req.query.q || '') as string;
+  const limit = (req.query.limit || '10') as string;
+  const filter = (req.query.filter || '') as string;
+
+  if (!text || text.trim().length < 2) {
+    return res.json({ features: [] });
+  }
+
+  try {
+    const url = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
+    url.searchParams.set('text', text.trim());
+    url.searchParams.set('limit', limit);
+    url.searchParams.set('apiKey', GEOAPIFY_KEY);
+    if (filter) url.searchParams.set('filter', filter);
+
+    const apiRes = await fetch(url.toString());
+    const data = await apiRes.json();
+    return res.status(apiRes.status).json(data);
+  } catch (err: any) {
+    console.warn('[Proxy /api/places/autocomplete] Error:', err);
+    return res.status(500).json({ error: 'Autocomplete proxy failed', details: err?.message });
+  }
+});
+
+app.get('/api/places/search', async (req: Request, res: Response) => {
+  const query = (req.query.q || req.query.text || '') as string;
+  if (!query) {
+    return res.json({
+      message: 'Geoapify Places Proxy Ready',
+      query: '',
+      results: [],
+    });
+  }
+
+  try {
+    const url = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
+    url.searchParams.set('text', query.trim());
+    url.searchParams.set('limit', '10');
+    url.searchParams.set('apiKey', GEOAPIFY_KEY);
+
+    const apiRes = await fetch(url.toString());
+    const data = await apiRes.json();
+    return res.status(apiRes.status).json({
+      message: 'Success',
+      query,
+      results: data.features || [],
+    });
+  } catch (err: any) {
+    return res.json({
+      message: 'Places API proxy ready',
+      query,
+      results: [],
+    });
+  }
+});
+
+app.get('/api/places/reverse', async (req: Request, res: Response) => {
+  const lat = req.query.lat as string;
+  const lon = (req.query.lon || req.query.lng) as string;
+
+  if (!lat || !lon) {
+    return res.status(400).json({ error: 'lat and lon are required parameters' });
+  }
+
+  try {
+    const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&apiKey=${GEOAPIFY_KEY}`;
+    const apiRes = await fetch(url);
+    const data = await apiRes.json();
+    return res.status(apiRes.status).json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Reverse geocode proxy failed', details: err?.message });
+  }
+});
+
+// Geoapify Routing Proxy Endpoint
+app.get('/api/routes', async (req: Request, res: Response) => {
+  const waypoints = req.query.waypoints as string;
+  const mode = (req.query.mode || 'drive') as string;
+
+  if (!waypoints) {
+    return res.status(400).json({ error: 'waypoints parameter is required' });
+  }
+
+  try {
+    const url = `https://api.geoapify.com/v1/routing?waypoints=${encodeURIComponent(waypoints)}&mode=${encodeURIComponent(mode)}&apiKey=${GEOAPIFY_KEY}`;
+    const apiRes = await fetch(url);
+    const data = await apiRes.json();
+    return res.status(apiRes.status).json(data);
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Routing proxy failed', details: err?.message });
+  }
+});
+
 app.post('/api/routes/optimize', (req: Request, res: Response) => {
   const { stops, travelMode } = req.body;
   res.json({
-    message: 'Routes API proxy ready for Google Routes matrix calculation',
+    message: 'Routes API proxy ready with Geoapify Routing support',
     receivedStops: stops?.length || 0,
     travelMode: travelMode || 'DRIVING',
   });
@@ -1376,6 +1500,9 @@ app.post('/api/routes/optimize', (req: Request, res: Response) => {
 // Save Trip Endpoint (Legacy compatibility)
 app.post('/api/trips', (req: Request, res: Response) => {
   const tripData = req.body;
+  if (Array.isArray(tripData.stops)) {
+    tripData.stops = sanitizeStops(tripData.stops);
+  }
   const userKey = (tripData.userId || 'default').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   savedTripsMap.set(userKey, tripData);
   persistTrips(savedTripsMap);
@@ -1435,10 +1562,105 @@ app.delete('/api/trips/:userId', (req: Request, res: Response) => {
 // Custom Trip Collections & Multi-Trip Management Endpoints
 // -------------------------------------------------------------
 
-// Helper to sanitize destinations for storage and sharing
+// Helper functions for place identification and duplicate prevention
+function normalizePlaceId(id?: string | null): string {
+  if (!id || typeof id !== 'string') return '';
+  return id.trim().replace(/^places\//, '').replace(/^place_/, '');
+}
+
+function normalizePlaceName(name?: string | null): string {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .toLowerCase()
+    .replace(/\s*\(c\)\s*$/i, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function namesAreCompatible(nameA?: string | null, nameB?: string | null): boolean {
+  const normA = normalizePlaceName(nameA);
+  const normB = normalizePlaceName(nameB);
+
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  if (normA.includes(normB) || normB.includes(normA)) return true;
+
+  const tokensA = normA.split(' ').filter((t) => t.length >= 3);
+  const tokensB = normB.split(' ').filter((t) => t.length >= 3);
+
+  return tokensA.some((t) => tokensB.includes(t));
+}
+
+function isSamePlace(a?: any, b?: any): boolean {
+  if (!a || !b) return false;
+
+  // 1. Direct placeId match (Google Place ID or OSM ID)
+  const normPlaceIdA = normalizePlaceId(a.placeId);
+  const normPlaceIdB = normalizePlaceId(b.placeId);
+  if (normPlaceIdA && normPlaceIdB && normPlaceIdA === normPlaceIdB) {
+    return true;
+  }
+
+  // 2. Direct ID match if not an autogenerated ephemeral stop ID
+  if (a.id && b.id && a.id === b.id) {
+    if (!a.id.startsWith('stop_') && !b.id.startsWith('stop_')) {
+      return true;
+    }
+  }
+
+  // 3. Fallback: Normalized coordinates and name matching
+  if (a.coordinates && b.coordinates) {
+    const latA = Number(a.coordinates.lat);
+    const lngA = Number(a.coordinates.lng);
+    const latB = Number(b.coordinates.lat);
+    const lngB = Number(b.coordinates.lng);
+
+    if (!isNaN(latA) && !isNaN(lngA) && !isNaN(latB) && !isNaN(lngB)) {
+      const latDiff = Math.abs(latA - latB);
+      const lngDiff = Math.abs(lngA - lngB);
+
+      const nameA = a.originalName || a.customName || a.name;
+      const nameB = b.originalName || b.customName || b.name;
+
+      if (latDiff <= 0.005 && lngDiff <= 0.005) {
+        if (namesAreCompatible(nameA, nameB)) {
+          return true;
+        }
+      }
+
+      if (latDiff < 0.00015 && lngDiff < 0.00015) {
+        if (!nameA || !nameB || namesAreCompatible(nameA, nameB)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function deduplicateStops(stops: any[]): any[] {
+  if (!Array.isArray(stops)) return [];
+  const uniqueStops: any[] = [];
+
+  for (const stop of stops) {
+    const isDupe = uniqueStops.some((existing) => isSamePlace(existing, stop));
+    if (!isDupe) {
+      uniqueStops.push(stop);
+    }
+  }
+
+  return uniqueStops.map((stop, idx) => ({
+    ...stop,
+    stopOrder: idx + 1,
+  }));
+}
+
+// Helper to sanitize destinations for storage and sharing, enforcing duplicate prevention
 function sanitizeStops(stops: any[]): any[] {
   if (!Array.isArray(stops)) return [];
-  return stops.map((s: any, idx: number) => ({
+  const rawSanitized = stops.map((s: any, idx: number) => ({
     id: s.id || `stop_${idx}_${Date.now()}`,
     placeId: s.placeId || '',
     name: s.name || 'Destination',
@@ -1462,6 +1684,8 @@ function sanitizeStops(stops: any[]): any[] {
     photoUrl: s.photoUrl || 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=600&auto=format&fit=crop&q=80',
     tags: s.tags || [],
   }));
+
+  return deduplicateStops(rawSanitized);
 }
 
 // GET /api/user-trips - List all trips for current user
@@ -1645,6 +1869,51 @@ app.put('/api/user-trips/:tripId', (req: Request, res: Response) => {
   }
 });
 
+// POST /api/user-trips/:tripId/stops - Add a stop with strict duplicate prevention
+app.post('/api/user-trips/:tripId/stops', (req: Request, res: Response) => {
+  try {
+    const rawId = req.params.tripId;
+    const tripId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const trip = tripCollectionsMap.get(tripId);
+
+    if (!trip) {
+      return res.status(404).json({ error: 'Trip not found.' });
+    }
+
+    const candidateStop = req.body.stop || req.body;
+    if (!candidateStop || (!candidateStop.name && !candidateStop.placeId)) {
+      return res.status(400).json({ error: 'Valid stop object is required.' });
+    }
+
+    // Check if candidate stop already exists in this trip
+    const isDuplicate = (trip.stops || []).some((existing: any) => isSamePlace(existing, candidateStop));
+    if (isDuplicate) {
+      return res.status(409).json({
+        error: 'This place is already in this file.',
+        isDuplicate: true,
+        trip,
+      });
+    }
+
+    const currentStops = trip.stops || [];
+    const newStops = sanitizeStops([...currentStops, candidateStop]);
+    trip.stops = newStops;
+    trip.updatedAt = new Date().toISOString();
+
+    tripCollectionsMap.set(trip.id, trip);
+    persistTripCollections(tripCollectionsMap);
+    saveTripCollectionToDb(trip).catch(() => {});
+
+    return res.status(201).json({
+      success: true,
+      message: 'Stop added successfully',
+      trip,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to add stop to trip' });
+  }
+});
+
 // DELETE /api/user-trips/:tripId - Delete a trip from collections
 app.delete('/api/user-trips/:tripId', (req: Request, res: Response) => {
   try {
@@ -1695,10 +1964,12 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
     let finalTitle = title || '';
     let tripsBundle: SharedTripRecord['trips'] = undefined;
 
+    // Resolve effective user for permission & reuse checks
+    const user = resolveRequestUser(req);
+    const effectiveUserId = user?.uid || userId || 'default';
+
     // 1. Sharing all trips for user
     if (isAllTrips) {
-      const user = resolveRequestUser(req);
-      const effectiveUserId = user?.uid || userId || 'default';
       const userTrips = Array.from(tripCollectionsMap.values()).filter(t => t.userId === effectiveUserId);
 
       if (userTrips.length === 0 && (!incomingStops || incomingStops.length === 0)) {
@@ -1718,6 +1989,30 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
       finalStops = userTrips.flatMap(t => sanitizeStops(t.stops));
       finalTitle = finalTitle || 'All My Trips';
       finalTripName = 'All Trips';
+
+      // Check if an active share for All Trips already exists for this user
+      const existingAllShare = Array.from(sharedTripsMap.values()).find(
+        s => s.isAllTrips && s.userId === effectiveUserId && s.isActive !== false
+      );
+      if (existingAllShare) {
+        existingAllShare.stops = finalStops;
+        existingAllShare.trips = tripsBundle;
+        existingAllShare.totalDestinations = finalStops.length;
+        persistSharedTrips(sharedTripsMap);
+        saveSharedTripToDb(existingAllShare).catch(() => {});
+        return res.status(200).json({
+          success: true,
+          shareId: existingAllShare.shareId,
+          selectedState: existingAllShare.selectedState,
+          tripName: finalTripName,
+          isAllTrips: true,
+          totalDestinations: finalStops.length,
+          stops: finalStops,
+          isActive: true,
+          createdAt: existingAllShare.createdAt,
+          reused: true,
+        });
+      }
     } else if (tripId) {
       // 2. Sharing a specific user trip
       const trip = tripCollectionsMap.get(tripId);
@@ -1731,6 +2026,31 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
         finalTitle = finalTitle || `Shared Trip: ${finalTripName}`;
       } else {
         return res.status(404).json({ error: 'Trip not found to share.' });
+      }
+
+      // Check if an active share already exists for this specific trip
+      const existingTripShare = Array.from(sharedTripsMap.values()).find(
+        s => s.tripId === tripId && s.userId === effectiveUserId && s.isActive !== false
+      );
+      if (existingTripShare) {
+        existingTripShare.stops = finalStops;
+        existingTripShare.title = finalTitle;
+        existingTripShare.tripName = finalTripName;
+        existingTripShare.totalDestinations = finalStops.length;
+        persistSharedTrips(sharedTripsMap);
+        saveSharedTripToDb(existingTripShare).catch(() => {});
+        return res.status(200).json({
+          success: true,
+          shareId: existingTripShare.shareId,
+          selectedState: existingTripShare.selectedState,
+          tripName: finalTripName,
+          isAllTrips: false,
+          totalDestinations: finalStops.length,
+          stops: finalStops,
+          isActive: true,
+          createdAt: existingTripShare.createdAt,
+          reused: true,
+        });
       }
     } else {
       // 3. Fallback / direct destination list sharing
@@ -1790,8 +2110,9 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
       stops: finalStops,
       travelMode: travelMode || 'DRIVING',
       ownerName: ownerName || 'Traveler',
-      userId: userId || undefined,
+      userId: effectiveUserId || undefined,
       totalDestinations: finalStops.length,
+      isActive: true,
       createdAt: new Date().toISOString(),
     };
 
@@ -1807,6 +2128,7 @@ app.post('/api/trips/share', (req: Request, res: Response) => {
       isAllTrips: Boolean(isAllTrips),
       totalDestinations: finalStops.length,
       stops: finalStops,
+      isActive: true,
       createdAt: newRecord.createdAt,
     });
   } catch (err: any) {
@@ -1820,7 +2142,15 @@ app.get('/api/trips/share/:shareId', (req: Request, res: Response) => {
   const record = sharedTripsMap.get(shareId);
 
   if (!record) {
-    return res.status(404).json({ success: false, error: 'Shared destination list not found or expired.' });
+    return res.status(404).json({ success: false, error: 'Shared trip not found or expired.' });
+  }
+
+  if (record.isActive === false) {
+    return res.status(410).json({
+      success: false,
+      isRevoked: true,
+      error: 'This share link has been revoked by the owner.',
+    });
   }
 
   return res.json({
@@ -1837,6 +2167,7 @@ app.get('/api/trips/share/:shareId', (req: Request, res: Response) => {
       travelMode: record.travelMode,
       ownerName: record.ownerName,
       totalDestinations: record.totalDestinations,
+      isActive: true,
       createdAt: record.createdAt,
     },
   });
@@ -1852,6 +2183,14 @@ app.get('/api/s/:shareId', (req: Request, res: Response) => {
     return res.status(404).json({ success: false, error: 'Shared trip not found or expired.' });
   }
 
+  if (record.isActive === false) {
+    return res.status(410).json({
+      success: false,
+      isRevoked: true,
+      error: 'This share link has been revoked by the owner.',
+    });
+  }
+
   return res.json({
     success: true,
     share: {
@@ -1866,9 +2205,57 @@ app.get('/api/s/:shareId', (req: Request, res: Response) => {
       travelMode: record.travelMode,
       ownerName: record.ownerName,
       totalDestinations: record.totalDestinations,
+      isActive: true,
       createdAt: record.createdAt,
     },
   });
+});
+
+// Revoke a shared trip link handler
+function handleRevokeShare(req: Request, res: Response) {
+  try {
+    const rawId = req.params.shareId;
+    const shareId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const record = sharedTripsMap.get(shareId);
+
+    if (!record) {
+      return res.status(404).json({ success: false, error: 'Shared trip not found.' });
+    }
+
+    const user = resolveRequestUser(req);
+    const requestingUserId = user?.uid || (req.body?.userId as string) || (req.query?.userId as string);
+
+    // Verify permission: only the creator can revoke
+    if (record.userId && requestingUserId && record.userId !== requestingUserId && record.userId !== 'default') {
+      return res.status(403).json({ success: false, error: 'You do not have permission to revoke this share link.' });
+    }
+
+    record.isActive = false;
+    record.revokedAt = new Date().toISOString();
+    sharedTripsMap.set(shareId, record);
+    persistSharedTrips(sharedTripsMap);
+    revokeSharedTripInDb(shareId).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: 'Share link revoked successfully.',
+      shareId,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to revoke share link' });
+  }
+}
+
+// DELETE & POST endpoints for revoking share links
+app.delete('/api/trips/share/:shareId', handleRevokeShare);
+app.post('/api/trips/share/:shareId/revoke', handleRevokeShare);
+
+// GET /s/:shareId - Direct backend redirect to frontend public share page
+app.get('/s/:shareId', (req: Request, res: Response) => {
+  const rawId = req.params.shareId;
+  const shareId = Array.isArray(rawId) ? rawId[0] : rawId;
+  const frontendUrl = process.env.FRONTEND_URL || 'https://vazhikatti-route.vercel.app';
+  return res.redirect(`${frontendUrl.replace(/\/+$/, '')}/s/${shareId}`);
 });
 
 // POST /api/trips/import - Import a shared trip into recipient user's trip collections
@@ -1885,6 +2272,10 @@ app.post('/api/trips/import', (req: Request, res: Response) => {
     const shareRecord = sharedTripsMap.get(shareId);
     if (!shareRecord) {
       return res.status(404).json({ error: 'Shared trip not found or expired.' });
+    }
+
+    if (shareRecord.isActive === false) {
+      return res.status(410).json({ error: 'This shared trip link has been revoked by the owner and cannot be imported.' });
     }
 
     // Helper to generate unique trip name if duplicate exists for this recipient

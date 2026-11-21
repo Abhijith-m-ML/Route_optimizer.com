@@ -120,12 +120,22 @@ export async function initDatabaseSchema(): Promise<void> {
         owner_name VARCHAR(255) DEFAULT 'Traveler',
         user_id VARCHAR(128),
         total_destinations INT DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        revoked_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
+    // Ensure idempotent migration for is_active and revoked_at
+    await client.query(`
+      ALTER TABLE shared_trips ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+      ALTER TABLE shared_trips ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+    `);
+
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_shared_trips_created_at ON shared_trips (created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_shared_trips_trip_id ON shared_trips (trip_id);
+      CREATE INDEX IF NOT EXISTS idx_shared_trips_user_id ON shared_trips (user_id);
     `);
 
     // 4. Legacy Saved Trips table (for single active route backward compatibility)
@@ -355,6 +365,8 @@ export async function loadSharedTripsFromDb(): Promise<Map<string, SharedTripRec
         owner_name as "ownerName",
         user_id as "userId",
         total_destinations as "totalDestinations",
+        is_active as "isActive",
+        revoked_at as "revokedAt",
         created_at as "createdAt"
       FROM shared_trips
     `);
@@ -373,6 +385,8 @@ export async function loadSharedTripsFromDb(): Promise<Map<string, SharedTripRec
         ownerName: row.ownerName || 'Traveler',
         userId: row.userId || undefined,
         totalDestinations: Number(row.totalDestinations) || 0,
+        isActive: row.isActive !== false,
+        revokedAt: row.revokedAt ? new Date(row.revokedAt).toISOString() : undefined,
         createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
       });
     }
@@ -393,9 +407,10 @@ export async function saveSharedTripToDb(trip: SharedTripRecord): Promise<void> 
       `
       INSERT INTO shared_trips (
         share_id, title, selected_state, trip_id, trip_name, is_all_trips,
-        trips, stops, travel_mode, owner_name, user_id, total_destinations, created_at
+        trips, stops, travel_mode, owner_name, user_id, total_destinations,
+        is_active, revoked_at, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ON CONFLICT (share_id) DO UPDATE SET
         title = EXCLUDED.title,
         selected_state = EXCLUDED.selected_state,
@@ -407,7 +422,9 @@ export async function saveSharedTripToDb(trip: SharedTripRecord): Promise<void> 
         travel_mode = EXCLUDED.travel_mode,
         owner_name = EXCLUDED.owner_name,
         user_id = EXCLUDED.user_id,
-        total_destinations = EXCLUDED.total_destinations
+        total_destinations = EXCLUDED.total_destinations,
+        is_active = EXCLUDED.is_active,
+        revoked_at = EXCLUDED.revoked_at
       `,
       [
         trip.shareId,
@@ -422,11 +439,28 @@ export async function saveSharedTripToDb(trip: SharedTripRecord): Promise<void> 
         trip.ownerName || 'Traveler',
         trip.userId || null,
         Number(trip.totalDestinations) || 0,
+        trip.isActive !== false,
+        trip.revokedAt || null,
         trip.createdAt || new Date().toISOString(),
       ]
     );
   } catch (err: any) {
     console.error(`[RouteWise Postgres] Failed to save shared trip ${trip.shareId}:`, err.message);
+  }
+}
+
+/**
+ * Revokes a shared trip in PostgreSQL.
+ */
+export async function revokeSharedTripInDb(shareId: string): Promise<void> {
+  if (!pool) return;
+  try {
+    await pool.query(
+      `UPDATE shared_trips SET is_active = FALSE, revoked_at = NOW() WHERE share_id = $1`,
+      [shareId]
+    );
+  } catch (err: any) {
+    console.error(`[RouteWise Postgres] Failed to revoke shared trip ${shareId}:`, err.message);
   }
 }
 

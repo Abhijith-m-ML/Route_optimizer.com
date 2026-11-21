@@ -110,7 +110,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       } finally {
         setIsLoading(false);
       }
-    }, 280);
+    }, 450);
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);

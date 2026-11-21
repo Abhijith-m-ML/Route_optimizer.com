@@ -87,3 +87,41 @@ html, body {
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* MapLibre popup & custom markers */
+.maplibregl-popup-content {
+  padding: 8px 12px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid rgba(226, 232, 240, 0.8) !important;
+  background: #ffffff !important;
+  font-family: var(--font-sans);
+}
+
+.maplibregl-popup-close-button {
+  display: none !important;
+}
+
+.dark .maplibregl-popup-content {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: #ffffff !important;
+}
+
+.dark .maplibregl-popup-tip {
+  border-top-color: #0f172a !important;
+}
+
+.vazhikatti-marker-container {
+  cursor: pointer;
+  transition: transform 0.15s ease-out;
+}
+
+.vazhikatti-marker-container:hover {
+  transform: scale(1.12);
+  z-index: 9999 !important;
+}

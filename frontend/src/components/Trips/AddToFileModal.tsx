@@ -13,6 +13,7 @@ import type { Destination, SelectedStop, TripCollection } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 import { calculateRouteMetrics } from '../../utils/routeOptimizer';
 import { updateUserTrip, createUserTrip, saveLocalTrips } from '../../services/tripService';
+import { findDuplicateStop, hasDuplicateStop, deduplicateStops } from '../../utils/placeMatching';
 
 export interface AddToFileModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export interface AddToFileModalProps {
   onTripUpdated?: (updatedTrip: TripCollection) => void;
   onTripCreated?: (newTrip: TripCollection) => void;
   onSuccessToast?: (message: string) => void;
+  onWarningToast?: (message: string) => void;
 }
 
 export const AddToFileModal: React.FC<AddToFileModalProps> = ({
@@ -36,6 +38,7 @@ export const AddToFileModal: React.FC<AddToFileModalProps> = ({
   onTripUpdated,
   onTripCreated,
   onSuccessToast,
+  onWarningToast,
 }) => {
   const { isDark } = useTheme();
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
@@ -51,18 +54,16 @@ export const AddToFileModal: React.FC<AddToFileModalProps> = ({
   const handleSelectTrip = async (trip: TripCollection) => {
     setErrorMessage(null);
 
-    // Prevent duplicate places in the same collection
-    const isDuplicate = trip.stops?.some(
-      (s) =>
-        s.id === destination.id ||
-        (destination.placeId && s.placeId === destination.placeId) ||
-        (s.name.toLowerCase() === destination.name.toLowerCase() &&
-          s.coordinates.lat === destination.coordinates.lat &&
-          s.coordinates.lng === destination.coordinates.lng)
-    );
-
-    if (isDuplicate) {
-      setErrorMessage(`"${destination.name}" is already in "${trip.name}".`);
+    // Robust duplicate place prevention within the selected file/collection
+    const isDuplicate = hasDuplicateStop(trip.stops, destination);
+    const duplicateStop = findDuplicateStop(trip.stops, destination);
+    if (isDuplicate || duplicateStop) {
+      // Destination is already in this file
+      const msg = 'This place is already in this file.';
+      setErrorMessage(msg);
+      if (onWarningToast) {
+        onWarningToast(msg);
+      }
       return;
     }
 
@@ -77,7 +78,7 @@ export const AddToFileModal: React.FC<AddToFileModalProps> = ({
         customDurationMinutes: destination.typicalVisitDurationMinutes || 90,
       };
 
-      const nextStops = [...currentStops, newStop];
+      const nextStops = deduplicateStops([...currentStops, newStop]);
       const updatedMetrics = calculateRouteMetrics(nextStops, trip.travelMode || 'DRIVING');
 
       const updatedTripData: TripCollection = {
@@ -343,14 +344,7 @@ export const AddToFileModal: React.FC<AddToFileModalProps> = ({
           ) : (
             trips.map((trip) => {
               const stopsCount = trip.stops?.length || 0;
-              const isAlreadyAdded = trip.stops?.some(
-                (s) =>
-                  s.id === destination.id ||
-                  (destination.placeId && s.placeId === destination.placeId) ||
-                  (s.name.toLowerCase() === destination.name.toLowerCase() &&
-                    s.coordinates.lat === destination.coordinates.lat &&
-                    s.coordinates.lng === destination.coordinates.lng)
-              );
+              const isAlreadyAdded = Boolean(findDuplicateStop(trip.stops, destination));
               const isCurrentSubmitting = isSubmitting && selectedTripId === trip.id;
 
               return (

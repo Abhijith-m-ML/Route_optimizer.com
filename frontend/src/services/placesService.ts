@@ -1,7 +1,15 @@
 import { getGoogleMapsApiKey, loadPlacesLibrary } from './googleMapsLoader';
+import { 
+  geoapifyAutocomplete, 
+  geoapifyReverseGeocode, 
+  isGeoapifyConfigured 
+} from './geoapifyService';
 import type { Destination, PlaceCategory, PlaceSuggestion } from '../types';
 import { getStateByName, normalizeStateName } from '../data/indianStates';
 import { CONTINENTS_DATA } from '../data/continentDestinations';
+
+// In-memory cache of destinations resolved by Geoapify autocomplete for instant fetchPlaceDetails
+const geoapifyResolvedPlacesMap = new Map<string, Destination>();
 
 // Fallback high-resolution photos for various categories
 const CATEGORY_DEFAULT_PHOTOS: Record<PlaceCategory, string> = {
@@ -190,7 +198,77 @@ export async function searchPlaces(
 
   let rawSuggestions: PlaceSuggestion[] = [];
 
-  // 1. Primary: Use Google Places API (New) REST endpoint
+  // 1. Primary: Use Geoapify Geocoding & Autocomplete API when configured
+  if (isGeoapifyConfigured()) {
+    try {
+      const geoResults = await geoapifyAutocomplete(trimmed, {
+        stateBias: selectedState,
+        limit: 10,
+      });
+
+      if (geoResults && geoResults.length > 0) {
+        // Cache destinations for instant retrieval in fetchPlaceDetails
+        for (const dest of geoResults) {
+          geoapifyResolvedPlacesMap.set(dest.id, dest);
+          if (dest.placeId) {
+            geoapifyResolvedPlacesMap.set(dest.placeId, dest);
+          }
+        }
+
+        const suggestions: PlaceSuggestion[] = geoResults.map((dest) => ({
+          placeId: dest.placeId || dest.id,
+          primaryText: dest.name,
+          secondaryText: dest.shortAddress || dest.address,
+          fullText: dest.address,
+          types: dest.tags,
+          city: dest.city,
+          state: dest.state,
+          stateCode: dest.stateCode,
+        }));
+
+        // Apply state prioritization if a state filter is selected
+        if (stateObj && stateObj.name !== 'All States') {
+          const targetState = stateObj.name.toLowerCase();
+          const targetCode = stateObj.code.toLowerCase();
+
+          const matchesTargetState = (s: PlaceSuggestion): boolean => {
+            if (s.state && s.state.toLowerCase() === targetState) return true;
+            if (s.stateCode && s.stateCode.toLowerCase() === targetCode) return true;
+            const combined = `${s.secondaryText} ${s.fullText}`.toLowerCase();
+            if (combined.includes(targetState) || combined.includes(targetCode)) return true;
+            if (stateObj.aliases && stateObj.aliases.some((a) => combined.includes(a.toLowerCase()))) {
+              return true;
+            }
+            return false;
+          };
+
+          const prioritized: PlaceSuggestion[] = [];
+          const others: PlaceSuggestion[] = [];
+
+          for (const sug of suggestions) {
+            if (matchesTargetState(sug)) {
+              prioritized.push({
+                ...sug,
+                state: sug.state || stateObj.name,
+                stateCode: stateObj.code,
+                isPrioritized: true,
+              });
+            } else {
+              others.push(sug);
+            }
+          }
+
+          return [...prioritized, ...others];
+        }
+
+        return suggestions;
+      }
+    } catch (geoErr) {
+      console.warn('[placesService] Geoapify search failed, falling back:', geoErr);
+    }
+  }
+
+  // 2. Secondary: Use Google Places API (New) REST endpoint
   if (apiKey) {
     try {
       const requestBody: Record<string, unknown> = {
@@ -379,6 +457,24 @@ export async function reverseGeocodeCoords(
   lat: number,
   lng: number
 ): Promise<{ address: string; placeName?: string; city?: string; state?: string; stateCode?: string; country?: string }> {
+  // 1. Primary: Use Geoapify Reverse Geocoding when configured
+  if (isGeoapifyConfigured()) {
+    try {
+      const rev = await geoapifyReverseGeocode(lat, lng);
+      if (rev && rev.address) {
+        return {
+          address: rev.address,
+          placeName: rev.name,
+          city: rev.city,
+          state: rev.state,
+          country: rev.country || 'India',
+        };
+      }
+    } catch (geoRevErr) {
+      console.warn('[reverseGeocodeCoords] Geoapify reverse geocoding fallback:', geoRevErr);
+    }
+  }
+
   try {
     await loadPlacesLibrary();
     if (window.google?.maps?.Geocoder) {
@@ -442,10 +538,35 @@ export async function fetchPlaceDetails(
   fallbackName?: string,
   mapInstance?: google.maps.Map | null
 ): Promise<Destination> {
-  const apiKey = getGoogleMapsApiKey();
   const cleanId = placeId.startsWith('places/') ? placeId.replace('places/', '') : placeId;
 
-  // 1. Primary: Use Places API (New) GET places/{placeId}
+  // 1. Instant check in Geoapify resolved places cache (zero network latency)
+  if (geoapifyResolvedPlacesMap.has(placeId)) {
+    return geoapifyResolvedPlacesMap.get(placeId)!;
+  }
+  if (geoapifyResolvedPlacesMap.has(cleanId)) {
+    return geoapifyResolvedPlacesMap.get(cleanId)!;
+  }
+
+  // 2. Query Geoapify if configured
+  if (isGeoapifyConfigured()) {
+    try {
+      const searchTarget = fallbackName || cleanId;
+      const geoResults = await geoapifyAutocomplete(searchTarget, { limit: 1 });
+      if (geoResults && geoResults.length > 0) {
+        const dest = geoResults[0];
+        geoapifyResolvedPlacesMap.set(placeId, dest);
+        geoapifyResolvedPlacesMap.set(cleanId, dest);
+        return dest;
+      }
+    } catch (geoDetailsErr) {
+      console.warn('[fetchPlaceDetails] Geoapify lookup fallback:', geoDetailsErr);
+    }
+  }
+
+  const apiKey = getGoogleMapsApiKey();
+
+  // 3. Fallback: Use Places API (New) GET places/{placeId}
   if (apiKey && !cleanId.includes('/') && cleanId.length < 100) {
     try {
       const response = await fetch(
@@ -677,7 +798,22 @@ export async function searchWorldwidePlaces(query: string): Promise<Destination[
     }
   }
 
-  // 2. Query Nominatim worldwide open geocoding API for global cities, countries, and landmarks
+  // 2. Query Geoapify autocomplete for worldwide places when configured
+  if (isGeoapifyConfigured()) {
+    try {
+      const geoResults = await geoapifyAutocomplete(trimmed, { limit: 12 });
+      for (const dest of geoResults) {
+        if (!seenPlaceIds.has(dest.id)) {
+          seenPlaceIds.add(dest.id);
+          results.push(dest);
+        }
+      }
+    } catch (geoWorldErr) {
+      console.warn('[searchWorldwidePlaces] Geoapify worldwide lookup fallback:', geoWorldErr);
+    }
+  }
+
+  // 3. Query Nominatim worldwide open geocoding API for global cities, countries, and landmarks
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmed)}&addressdetails=1&limit=10`,

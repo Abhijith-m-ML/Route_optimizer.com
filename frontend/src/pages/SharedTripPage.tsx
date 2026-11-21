@@ -10,6 +10,7 @@ export const SharedTripPage: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRevoked, setIsRevoked] = useState(false);
   const [sharedData, setSharedData] = useState<SharedTripData | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -27,11 +28,20 @@ export const SharedTripPage: React.FC = () => {
     let isMounted = true;
     setLoading(true);
     setError(null);
+    setIsRevoked(false);
 
     const loadTrip = async () => {
       if (shareId && shareId !== 'preview' && shareId !== 'local') {
         const data = await fetchSharedTrip(shareId);
         if (!isMounted) return;
+
+        if (data?.isRevoked) {
+          setIsRevoked(true);
+          setError('This share link has been revoked by the owner and is no longer accessible.');
+          setLoading(false);
+          return;
+        }
+
         if (data && Array.isArray(data.stops) && data.stops.length > 0) {
           setSharedData(data);
           setLoading(false);
@@ -39,7 +49,7 @@ export const SharedTripPage: React.FC = () => {
         }
       }
 
-      // Check fallback trip param
+      // Check fallback base64 trip param
       if (tripParam) {
         try {
           const binaryStr = atob(tripParam.replace(/-/g, '+').replace(/_/g, '/'));
@@ -79,17 +89,30 @@ export const SharedTripPage: React.FC = () => {
 
   const handleViewSharedTrip = () => {
     if (!sharedData) return;
-    // Store in localStorage so DashboardPage automatically activates and reveals the trip
+    // Store in sessionStorage & fallback localStorage for one-time transit to DashboardPage
+    sessionStorage.setItem('vazhikatti_pending_shared_trip', JSON.stringify(sharedData));
     localStorage.setItem('vazhikatti_pending_shared_trip', JSON.stringify(sharedData));
+    sessionStorage.setItem('vazhikatti_guest_viewing_shared_trip', 'true');
+    // Ensure any legacy persistent modal key is removed
+    localStorage.removeItem('vazhikatti_active_shared_trip');
     navigate('/dashboard');
   };
 
-  const handleCopyLink = () => {
+  // Aliases for map exploration and importing to user's trips
+  const handleExploreOnMap = handleViewSharedTrip;
+  const handleImportToMyTrips = handleViewSharedTrip;
+
+  const handleCopyLink = async () => {
     const currentUrl = window.location.href;
     if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(currentUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      try {
+        await navigator.clipboard.writeText(currentUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
     }
   };
 
@@ -114,18 +137,22 @@ export const SharedTripPage: React.FC = () => {
             <span className="text-xl sm:text-2xl font-bold text-white tracking-tight select-none">
               vazhikatti
             </span>
-            <span className="inline-flex items-center px-3.5 py-1 sm:px-4 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold tracking-wider uppercase text-rose-400 bg-rose-950/60 border border-rose-500/30">
-              NOT FOUND
+            <span className={`inline-flex items-center px-3.5 py-1 sm:px-4 sm:py-1 rounded-full text-[11px] sm:text-xs font-bold tracking-wider uppercase border ${
+              isRevoked
+                ? 'text-amber-400 bg-amber-950/60 border-amber-500/30'
+                : 'text-rose-400 bg-rose-950/60 border-rose-500/30'
+            }`}>
+              {isRevoked ? 'LINK REVOKED' : 'TRIP NOT FOUND'}
             </span>
           </div>
 
           {/* Error Card */}
           <div className="bg-[#0c1f38] rounded-2xl p-6 sm:p-8 md:p-10 text-left border border-white/5 shadow-inner">
             <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#7a95b3] mb-2 sm:mb-2.5">
-              UNABLE TO LOAD INVITATION
+              {isRevoked ? 'ACCESS PERMISSION REVOKED' : 'UNABLE TO LOAD INVITATION'}
             </p>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-wide mb-3">
-              TRIP NOT FOUND
+              {isRevoked ? 'Share Link Revoked' : 'TRIP NOT FOUND'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-7 sm:mb-9">
               {error || 'This shared trip link is invalid, expired, or has been removed.'}
@@ -133,6 +160,7 @@ export const SharedTripPage: React.FC = () => {
 
             <Link
               to="/dashboard"
+              onClick={handleImportToMyTrips}
               className="w-full bg-white hover:bg-slate-100 active:bg-slate-200 text-[#0c1f38] font-extrabold text-sm sm:text-base py-3.5 sm:py-4 px-6 rounded-xl sm:rounded-2xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center tracking-wider uppercase text-center"
             >
               EXPLORE VAZHIKATTI →
@@ -178,7 +206,7 @@ export const SharedTripPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Invitation Card with dark navy-blue background */}
+        {/* Main Invitation Card with signature dark navy-blue background */}
         <div className="bg-[#0c1f38] rounded-2xl p-6 sm:p-8 md:p-10 text-left border border-white/5 shadow-inner">
           {/* Small Heading */}
           <p className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#7a95b3] mb-2 sm:mb-2.5">
@@ -193,7 +221,7 @@ export const SharedTripPage: React.FC = () => {
           {/* Main Button */}
           <button
             type="button"
-            onClick={handleViewSharedTrip}
+            onClick={handleExploreOnMap}
             className="w-full bg-white hover:bg-slate-100 active:bg-slate-200 text-[#0c1f38] font-extrabold text-sm sm:text-base py-3.5 sm:py-4 px-6 rounded-xl sm:rounded-2xl transition-all shadow-md active:scale-[0.99] flex items-center justify-center tracking-wider uppercase cursor-pointer"
           >
             VIEW SHARED TRIP →
@@ -215,3 +243,4 @@ export const SharedTripPage: React.FC = () => {
   );
 };
 
+export default SharedTripPage;

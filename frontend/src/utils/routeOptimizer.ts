@@ -1,4 +1,5 @@
 import type { LatLng, RouteMetrics, SelectedStop, TravelMode } from '../types';
+import { geoapifyCalculateRoute, isGeoapifyConfigured } from '../services/geoapifyService';
 
 /**
  * Calculates the great-circle distance between two points on Earth using Haversine formula.
@@ -91,6 +92,53 @@ export function calculateRouteMetrics(stops: SelectedStop[], mode: TravelMode = 
       estimatedFuelCostInr,
     },
   };
+}
+
+/**
+ * Asynchronously calculates real-world routing metrics and leg statistics via Geoapify Routing API.
+ * Falls back to local Haversine calculations if offline or unconfigured.
+ */
+export async function calculateRouteMetricsWithGeoapify(
+  stops: SelectedStop[],
+  mode: TravelMode = 'DRIVING'
+): Promise<{
+  enrichedStops: SelectedStop[];
+  metrics: RouteMetrics;
+}> {
+  if (stops.length < 2 || !isGeoapifyConfigured()) {
+    return calculateRouteMetrics(stops, mode);
+  }
+
+  try {
+    const routeResult = await geoapifyCalculateRoute(stops, mode);
+    if (routeResult && routeResult.legs && routeResult.legs.length > 0) {
+      const enrichedStops: SelectedStop[] = stops.map((stop, index) => {
+        const leg = routeResult.legs[index];
+        return {
+          ...stop,
+          stopOrder: index + 1,
+          distanceToNextKm: leg ? leg.distanceKm : undefined,
+          timeToNextMinutes: leg ? leg.durationMinutes : undefined,
+        };
+      });
+
+      const estimatedFuelCostInr = Math.round(routeResult.totalDistanceKm * 18 + 50);
+
+      return {
+        enrichedStops,
+        metrics: {
+          totalDistanceKm: routeResult.totalDistanceKm,
+          totalDurationMinutes: routeResult.totalDurationMinutes,
+          totalStops: stops.length,
+          estimatedFuelCostInr,
+        },
+      };
+    }
+  } catch (err) {
+    console.warn('[routeOptimizer] Geoapify route calculation fallback:', err);
+  }
+
+  return calculateRouteMetrics(stops, mode);
 }
 
 /**

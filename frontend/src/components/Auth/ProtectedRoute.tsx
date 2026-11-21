@@ -21,11 +21,13 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
-  // Allow guests to view dashboard if they have a shared trip or pending shared trip
+  // Allow guests to view dashboard if they have an active shared trip in transit or guest session
   const hasSharedTrip =
     location.search.includes('share=') ||
     location.search.includes('trip=') ||
-    Boolean(localStorage.getItem('vazhikatti_pending_shared_trip'));
+    Boolean(sessionStorage.getItem('vazhikatti_pending_shared_trip')) ||
+    Boolean(localStorage.getItem('vazhikatti_pending_shared_trip')) ||
+    Boolean(sessionStorage.getItem('vazhikatti_guest_viewing_shared_trip'));
 
   if (!user && !hasSharedTrip) {
     // Preserve requested route destination so user is redirected back after sign in
