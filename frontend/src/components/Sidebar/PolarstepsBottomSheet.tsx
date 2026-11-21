@@ -36,6 +36,7 @@ export interface PolarstepsBottomSheetProps {
   travelMode?: TravelMode;
   initialPosition?: SheetSnapPosition;
   onPositionChange?: (position: SheetSnapPosition) => void;
+  forceSnapPosition?: SheetSnapPosition | null;
 }
 
 export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
@@ -55,6 +56,7 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
   travelMode: _travelMode = 'DRIVING',
   initialPosition = 'half',
   onPositionChange,
+  forceSnapPosition,
 }) => {
   const { user } = useAuth();
   const { isDark } = useTheme();
@@ -110,6 +112,13 @@ export const PolarstepsBottomSheet: React.FC<PolarstepsBottomSheetProps> = ({
     setSnapPosition(newPos);
     onPositionChange?.(newPos);
   };
+
+  // Synchronize snap position when parent requests collapse (e.g. marker selected on mobile)
+  useEffect(() => {
+    if (forceSnapPosition) {
+      snapTo(forceSnapPosition);
+    }
+  }, [forceSnapPosition]);
 
   const toggleExpand = () => {
     if (snapPosition === 'collapsed') {

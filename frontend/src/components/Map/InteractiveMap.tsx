@@ -164,8 +164,24 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   const [showThemeMenu, setShowThemeMenu] = useState<boolean>(false);
   const [mobileSelectedStop, setMobileSelectedStop] = useState<{ stop: SelectedStop; index: number } | null>(null);
   const userClickedStopIdRef = useRef<string | null>(null);
+  const isMarkerClickedRef = useRef<boolean>(false);
   const currentRouteGeoJsonRef = useRef<any>(null);
   const failsafeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialThemeMountRef = useRef<boolean>(true);
+
+  // Guarantees the map loading overlay is dismissed and never blocks user interaction
+  useEffect(() => {
+    if (status !== 'loading') return;
+    const timer = setTimeout(() => {
+      setStatus('ready');
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.resize();
+        } catch {}
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   // Synchronize mobileSelectedStop with activeStopId only upon explicit user interaction
   useEffect(() => {
@@ -458,6 +474,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       map.on('load', markReady);
       map.on('style.load', markReady);
+      map.on('idle', markReady);
       map.on('render', () => {
         if (map.isStyleLoaded()) {
           markReady();
@@ -468,7 +485,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       if (failsafeTimerRef.current) clearTimeout(failsafeTimerRef.current);
       failsafeTimerRef.current = setTimeout(() => {
         markReady();
-      }, 700);
+      }, 500);
 
       // Force immediate initial resize measurement
       setTimeout(() => {
@@ -477,8 +494,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         } catch {}
       }, 50);
 
-      // Close popups on general map click
+      // Close popups and mobile panel on general map click
       map.on('click', () => {
+        if (isMarkerClickedRef.current) return;
         if (popupRef.current) {
           popupRef.current.remove();
           popupRef.current = null;
@@ -578,21 +596,41 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         el.setAttribute('data-stop-index', String(index + 1));
         el.innerHTML = svgMarkup;
 
-        el.addEventListener('click', (e) => {
+        const handleMarkerSelect = (e: Event) => {
           e.stopPropagation();
+          isMarkerClickedRef.current = true;
+          setTimeout(() => {
+            isMarkerClickedRef.current = false;
+          }, 450);
+
           userClickedStopIdRef.current = stop.id;
           onSelectStop?.(stop.id);
+
           if (typeof window !== 'undefined' && window.innerWidth < 1024) {
             if (popupRef.current) {
               popupRef.current.remove();
               popupRef.current = null;
             }
             setMobileSelectedStop({ stop, index });
-            map.panTo([stop.coordinates.lng, stop.coordinates.lat]);
+            map.panTo([stop.coordinates.lng, stop.coordinates.lat], {
+              offset: [0, -70],
+              duration: 400,
+            });
           } else {
             openInfoWindowForStop(stop, index);
           }
-        });
+        };
+
+        const stopGesturePropagation = (e: Event) => {
+          e.stopPropagation();
+          isMarkerClickedRef.current = true;
+        };
+
+        el.addEventListener('click', handleMarkerSelect);
+        el.addEventListener('touchend', handleMarkerSelect);
+        el.addEventListener('mousedown', stopGesturePropagation);
+        el.addEventListener('touchstart', stopGesturePropagation);
+        el.addEventListener('pointerdown', stopGesturePropagation);
 
         marker = new maplibregl.Marker({
           element: el,
@@ -625,11 +663,32 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       }
     });
 
+    // Keep mobileSelectedStop in sync if list reordered
+    if (mobileSelectedStop) {
+      const matchIdx = stops.findIndex((s) => s.id === mobileSelectedStop.stop.id);
+      if (matchIdx !== -1 && (matchIdx !== mobileSelectedStop.index || stops[matchIdx] !== mobileSelectedStop.stop)) {
+        setMobileSelectedStop({ stop: stops[matchIdx], index: matchIdx });
+      } else if (matchIdx === -1) {
+        setMobileSelectedStop(null);
+      }
+    }
+
     // 3. Handle Map Pan / Bounds on destination add / clear
     const prevCount = prevStopsCountRef.current;
     const currentCount = stops.length;
 
-    if (currentCount > prevCount && currentCount > 0) {
+    if (prevCount === 0 && currentCount > 1) {
+      // Initial load with multiple stops: fit all stops comfortably inside viewport
+      const bounds = new maplibregl.LngLatBounds();
+      stops.forEach((s) => {
+        bounds.extend([s.coordinates.lng, s.coordinates.lat]);
+      });
+      map.fitBounds(bounds, {
+        padding: { top: 80, right: 30, bottom: 120, left: 30 },
+        maxZoom: 14,
+        duration: 0,
+      });
+    } else if (currentCount > prevCount && currentCount > 0) {
       // A new destination was just added: pan map toward it
       const latestStop = stops[stops.length - 1];
       map.panTo([latestStop.coordinates.lng, latestStop.coordinates.lat]);
@@ -784,12 +843,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }
 
     if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
     const styleUrl = getGeoapifyMapStyleUrl(theme);
-    mapInstanceRef.current.setStyle(styleUrl);
+
+    map.once('style.load', () => {
+      if (currentRouteGeoJsonRef.current) {
+        applyRouteLineToMap(currentRouteGeoJsonRef.current);
+      }
+      setStatus('ready');
+    });
+
+    map.setStyle(styleUrl);
   };
 
-  // Synchronize map theme when application global theme changes
+  // Synchronize map theme when application global theme changes (after initial map mount)
   useEffect(() => {
+    if (isInitialThemeMountRef.current) {
+      isInitialThemeMountRef.current = false;
+      return;
+    }
     const targetMapTheme: MapThemeType = isDark ? 'dark' : 'roadmap';
     if (currentTheme !== 'satellite' && currentTheme !== targetMapTheme) {
       handleThemeChange(targetMapTheme);
@@ -810,7 +882,11 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       {/* --- UI State 1: Loading State --- */}
       {status === 'loading' && (
-        <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center z-30 text-slate-100">
+        <div 
+          onClick={() => setStatus('ready')}
+          className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center z-30 text-slate-100 cursor-pointer select-none"
+          title="Click to dismiss loading screen"
+        >
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 p-0.5 shadow-2xl shadow-indigo-500/25 mb-4 animate-pulse">
             <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
               <Compass className="w-7 h-7 text-cyan-400 animate-[spin_4s_linear_infinite]" />
@@ -1059,15 +1135,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             </div>
           )}
 
-          {/* Mobile-Optimized Destination Detail Card (Docked cleanly at bottom of map) */}
+          {/* Mobile-Optimized Destination Detail & Action Panel (Docked cleanly above bottom nav) */}
           {mobileSelectedStop && (
             <div 
               data-testid="mobile-destination-card"
-              className="lg:hidden absolute bottom-4 sm:bottom-6 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-md z-30 pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150"
+              className={`lg:hidden fixed z-50 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-md bottom-[84px] bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px)+8px)] pointer-events-auto rounded-2xl p-3.5 shadow-2xl transition-all duration-200 animate-in slide-in-from-bottom-3 ${
+                isDark
+                  ? 'bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 text-white shadow-black/50'
+                  : 'bg-white/95 backdrop-blur-xl border border-slate-200/90 text-slate-900 shadow-slate-900/20'
+              }`}
             >
-              <div className="flex items-start justify-between gap-2">
+              {/* Header row: Badge, Name, Close Button */}
+              <div className="flex items-start justify-between gap-2.5">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full text-white flex-shrink-0 ${
+                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full text-white flex-shrink-0 shadow-sm ${
                     mobileSelectedStop.index === 0
                       ? 'bg-emerald-600'
                       : mobileSelectedStop.index === stops.length - 1 && stops.length > 1
@@ -1080,81 +1161,101 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                       ? `Stop ${mobileSelectedStop.index + 1} (End)`
                       : `Stop ${mobileSelectedStop.index + 1}`}
                   </span>
-                  <h4 className="font-bold text-sm text-white truncate">
+                  <h4 className="font-bold text-sm truncate leading-snug">
                     {mobileSelectedStop.stop.name}
                   </h4>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setMobileSelectedStop(null)}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 active:bg-slate-700 transition flex-shrink-0"
-                  aria-label="Close destination details"
+                  onClick={() => {
+                    setMobileSelectedStop(null);
+                    userClickedStopIdRef.current = null;
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition flex-shrink-0"
+                  aria-label="Close action panel"
+                  title="Close"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="mt-1 flex items-center gap-2 text-xs text-slate-300">
-                {mobileSelectedStop.stop.city && (
-                  <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                    <MapPin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+              {/* Subtitle / Location Row */}
+              <div className="mt-1 flex items-center gap-2 text-xs">
+                {(mobileSelectedStop.stop.city || mobileSelectedStop.stop.state) ? (
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 min-w-0">
+                    <MapPin className="w-3 h-3 text-cyan-500 dark:text-cyan-400 flex-shrink-0" />
                     <span className="truncate">
                       {mobileSelectedStop.stop.city}
                       {mobileSelectedStop.stop.state ? `, ${mobileSelectedStop.stop.state}` : ''}
                     </span>
                   </span>
-                )}
-                {mobileSelectedStop.index === 0 ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Starting Place
+                ) : mobileSelectedStop.stop.shortAddress ? (
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 min-w-0">
+                    <MapPin className="w-3 h-3 text-cyan-500 dark:text-cyan-400 flex-shrink-0" />
+                    <span className="truncate">{mobileSelectedStop.stop.shortAddress}</span>
                   </span>
-                ) : (
-                  <span className="text-[10px] font-semibold text-slate-400">
-                    Stop #{mobileSelectedStop.index + 1}
+                ) : null}
+
+                {mobileSelectedStop.index === 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex-shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+                    Starting Place
                   </span>
                 )}
               </div>
 
-              {mobileSelectedStop.stop.shortAddress && (
-                <p className="text-[11px] text-slate-400 truncate mt-1">
+              {/* Additional Address Line if available */}
+              {mobileSelectedStop.stop.shortAddress && (mobileSelectedStop.stop.city || mobileSelectedStop.stop.state) && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                   {mobileSelectedStop.stop.shortAddress}
                 </p>
               )}
 
-              {/* Actions: Set as Start, Remove Stop & Google Maps Navigation */}
-              <div className="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  {mobileSelectedStop.index !== 0 && onSetAsStart && (
+              {/* Action Buttons Row: Set as Start (Flag + text), Remove Stop (Trash + text), Google Maps (Logo only) */}
+              <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {mobileSelectedStop.index !== 0 && onSetAsStart ? (
                     <button
                       type="button"
                       onClick={() => {
                         onSetAsStart(mobileSelectedStop.stop.id);
                         setMobileSelectedStop(null);
+                        userClickedStopIdRef.current = null;
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 active:bg-emerald-500/35 border border-emerald-500/30 transition min-h-[44px]"
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/25 border border-emerald-200 dark:border-emerald-500/30 transition min-h-[44px]"
                       data-testid="set-start-btn"
+                      aria-label="Set as Start"
+                      title="Set as Start"
                     >
-                      <Flag className="w-3.5 h-3.5" />
-                      <span>Set as Start</span>
+                      <Flag className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="whitespace-nowrap">Set as Start</span>
                     </button>
-                  )}
+                  ) : mobileSelectedStop.index === 0 ? (
+                    <div className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-500/10 border border-emerald-200/80 dark:border-emerald-500/20 min-h-[44px]">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="whitespace-nowrap">Start Point</span>
+                    </div>
+                  ) : null}
 
                   <button
                     type="button"
                     onClick={() => {
                       onRemoveStop?.(mobileSelectedStop.stop.id);
                       setMobileSelectedStop(null);
+                      userClickedStopIdRef.current = null;
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 border border-rose-500/20 transition min-h-[44px]"
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/20 transition min-h-[44px]"
                     data-testid="remove-stop-btn"
+                    aria-label="Remove Stop"
+                    title="Remove Stop"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Remove Stop</span>
+                    <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="whitespace-nowrap">Remove Stop</span>
                   </button>
                 </div>
 
+                {/* Google Maps Button: Small button containing ONLY the official Google Maps logo */}
                 <a
                   href={getGoogleMapsDirectionsUrl(
                     mobileSelectedStop.stop.coordinates.lat,
@@ -1162,18 +1263,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 active:bg-slate-200 transition shadow-md min-h-[44px]"
+                  className="w-11 h-11 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-200 dark:border-slate-300 shadow-sm transition min-h-[44px] flex-shrink-0"
                   data-testid="gmaps-nav-button"
-                  aria-label="Navigate with Google Maps"
-                  title="Navigate with Google Maps"
+                  aria-label="Open in Google Maps"
+                  title="Open in Google Maps"
                 >
                   <img
                     src={googleMapsPinIcon || '/google-maps-pin.png'}
                     alt="Google Maps"
-                    className="w-4 h-4 object-contain"
+                    className="w-5 h-5 object-contain flex-shrink-0"
                   />
-                  <span>Directions</span>
-                  <ExternalLink className="w-3 h-3 text-slate-500" />
                 </a>
               </div>
             </div>

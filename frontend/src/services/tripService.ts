@@ -397,7 +397,18 @@ export function decodeTripFromUrl(
   encoded: string
 ): { title: string; travelMode: TravelMode; selectedState: string; stops: SelectedStop[] } | null {
   try {
-    const jsonStr = decodeURIComponent(atob(encoded));
+    if (!encoded || typeof encoded !== 'string') return null;
+    let base64 = encoded.trim().replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const decodedRaw = atob(base64);
+    let jsonStr: string;
+    try {
+      jsonStr = decodeURIComponent(decodedRaw);
+    } catch {
+      jsonStr = decodedRaw;
+    }
     const parsed = JSON.parse(jsonStr);
     if (!parsed || !Array.isArray(parsed.s)) return null;
 

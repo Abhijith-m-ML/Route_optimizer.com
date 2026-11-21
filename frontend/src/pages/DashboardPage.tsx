@@ -1226,6 +1226,7 @@ export const DashboardPage: React.FC = () => {
               setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
             }}
             travelMode={travelMode}
+            forceSnapPosition={activeStopId ? 'collapsed' : null}
           />
         </div>
       </main>
